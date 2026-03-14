@@ -112,17 +112,24 @@ impl MysqlBackend {
         sql: &str,
         database: Option<&str>,
     ) -> Result<Vec<Map<String, Value>>, AppError> {
+        // Acquire a single connection so USE and the query run on the same session
+        let mut conn = self
+            .pool
+            .acquire()
+            .await
+            .map_err(|e| AppError::Connection(e.to_string()))?;
+
         // Switch database if needed
         if let Some(db) = database {
             validate_identifier(db)?;
             sqlx::query(&format!("USE {}", backtick_escape(db)))
-                .execute(&self.pool)
+                .execute(&mut *conn)
                 .await
                 .map_err(|e| AppError::Query(e.to_string()))?;
         }
 
         let rows: Vec<MySqlRow> = sqlx::query(sql)
-            .fetch_all(&self.pool)
+            .fetch_all(&mut *conn)
             .await
             .map_err(|e| AppError::Query(e.to_string()))?;
 
