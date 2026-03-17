@@ -40,11 +40,11 @@ async fn seed_db(db_path: &str) {
 fn sqlite_config(db_path: &str, read_only: bool) -> Config {
     Config {
         db_backend: DatabaseBackend::Sqlite,
-        db_host: None,
-        db_port: None,
-        db_user: None,
-        db_password: None,
-        db_name: Some(format!("{db_path}?mode=rwc")),
+        db_host: "localhost".into(),
+        db_port: 0,
+        db_user: String::new(),
+        db_password: String::new(),
+        db_name: format!("{db_path}?mode=rwc"),
         db_read_only: read_only,
         db_max_pool_size: 10,
         db_charset: None,
@@ -55,10 +55,10 @@ fn sqlite_config(db_path: &str, read_only: bool) -> Config {
         db_ssl_verify_cert: true,
         log_level: "info".into(),
         log_file: "logs/mcp_server.log".into(),
-        http_host: None,
-        http_port: None,
-        http_allowed_origins: None,
-        http_allowed_hosts: None,
+        http_host: "127.0.0.1".into(),
+        http_port: 9001,
+        http_allowed_origins: vec!["http://localhost".into()],
+        http_allowed_hosts: vec!["localhost".into()],
     }
 }
 

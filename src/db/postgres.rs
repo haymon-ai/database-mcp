@@ -58,11 +58,7 @@ impl PostgresBackend {
     fn build_connection_url(config: &Config) -> String {
         let mut url = format!(
             "postgres://{}:{}@{}:{}/{}",
-            config.effective_user(),
-            config.db_password.as_deref().unwrap_or(""),
-            config.effective_host(),
-            config.effective_port(),
-            config.db_name.as_deref().unwrap_or("")
+            config.db_user, config.db_password, config.db_host, config.db_port, config.db_name
         );
 
         let mut params = Vec::new();

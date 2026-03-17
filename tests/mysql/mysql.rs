@@ -20,11 +20,11 @@ fn test_config() -> Config {
 
     Config {
         db_backend: DatabaseBackend::Mysql,
-        db_host: Some(host),
-        db_port: Some(port),
-        db_user: Some(user),
-        db_password: Some(password),
-        db_name: Some("mcp".into()),
+        db_host: host,
+        db_port: port,
+        db_user: user,
+        db_password: password,
+        db_name: "mcp".into(),
         db_read_only: false,
         db_max_pool_size: 10,
         db_charset: None,
@@ -35,10 +35,10 @@ fn test_config() -> Config {
         db_ssl_verify_cert: true,
         log_level: "info".into(),
         log_file: "logs/mcp_server.log".into(),
-        http_host: None,
-        http_port: None,
-        http_allowed_origins: None,
-        http_allowed_hosts: None,
+        http_host: "127.0.0.1".into(),
+        http_port: 9001,
+        http_allowed_origins: vec!["http://localhost".into()],
+        http_allowed_hosts: vec!["localhost".into()],
     }
 }
 

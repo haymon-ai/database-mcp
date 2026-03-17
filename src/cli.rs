@@ -30,20 +30,19 @@ struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
 
-    // -- Database connection --
     /// Database backend
     #[arg(long = "db-backend", env = "DB_BACKEND", global = true)]
     db_backend: DatabaseBackend,
 
     /// Database host
-    #[arg(long = "db-host", env = "DB_HOST", global = true)]
-    db_host: Option<String>,
+    #[arg(long = "db-host", env = "DB_HOST", default_value = Config::DEFAULT_DB_HOST, global = true)]
+    db_host: String,
 
-    /// Database port
+    /// Database port (default: backend-dependent)
     #[arg(long = "db-port", env = "DB_PORT", global = true)]
     db_port: Option<u16>,
 
-    /// Database user
+    /// Database user (default: backend-dependent)
     #[arg(long = "db-user", env = "DB_USER", global = true)]
     db_user: Option<String>,
 
@@ -59,7 +58,6 @@ struct Cli {
     #[arg(long = "db-charset", env = "DB_CHARSET", global = true)]
     db_charset: Option<String>,
 
-    // -- SSL/TLS --
     /// Enable SSL for database connection
     #[arg(
         long = "db-ssl",
@@ -77,7 +75,7 @@ struct Cli {
     #[arg(long = "db-ssl-cert", env = "DB_SSL_CERT", global = true)]
     db_ssl_cert: Option<String>,
 
-    /// Path to client key
+    /// Path to a client key
     #[arg(long = "db-ssl-key", env = "DB_SSL_KEY", global = true)]
     db_ssl_key: Option<String>,
 
@@ -90,12 +88,11 @@ struct Cli {
     )]
     db_ssl_verify_cert: bool,
 
-    // -- MCP behavior --
     /// Enable read-only mode
     #[arg(
         long = "read-only",
         env = "MCP_READ_ONLY",
-        default_value_t = true,
+        default_value_t = Config::DEFAULT_DB_READ_ONLY,
         global = true
     )]
     read_only: bool,
@@ -104,18 +101,17 @@ struct Cli {
     #[arg(
         long = "max-pool-size",
         env = "MCP_MAX_POOL_SIZE",
-        default_value_t = 10,
+        default_value_t = Config::DEFAULT_DB_MAX_POOL_SIZE,
         global = true,
         value_parser = clap::value_parser!(u32).range(1..)
     )]
     max_pool_size: u32,
 
-    // -- Logging --
     /// Log level (e.g. info, debug, warn)
     #[arg(
         long = "log-level",
         env = "LOG_LEVEL",
-        default_value = "info",
+        default_value = Config::DEFAULT_LOG_LEVEL,
         global = true
     )]
     log_level: String,
@@ -124,7 +120,7 @@ struct Cli {
     #[arg(
         long = "log-file",
         env = "LOG_FILE",
-        default_value = "logs/mcp_server.log",
+        default_value = Config::DEFAULT_LOG_FILE,
         global = true
     )]
     log_file: String,
@@ -137,23 +133,18 @@ enum Command {
     /// Run in HTTP/SSE mode
     Http {
         /// Bind host for HTTP transport
-        #[arg(long, default_value = "127.0.0.1")]
+        #[arg(long, default_value = Config::DEFAULT_HTTP_HOST)]
         host: String,
 
         /// Bind port for HTTP transport
-        #[arg(long, default_value_t = 9001)]
+        #[arg(long, default_value_t = Config::DEFAULT_HTTP_PORT)]
         port: u16,
 
         /// Allowed CORS origins (comma-separated)
         #[arg(
             long = "allowed-origins",
             value_delimiter = ',',
-            default_values_t = vec![
-                "http://localhost".to_string(),
-                "http://127.0.0.1".to_string(),
-                "https://localhost".to_string(),
-                "https://127.0.0.1".to_string(),
-            ]
+            default_values_t = Config::DEFAULT_HTTP_ALLOWED_ORIGINS.iter().map(|&s| s.to_string())
         )]
         allowed_origins: Vec<String>,
 
@@ -161,7 +152,7 @@ enum Command {
         #[arg(
             long = "allowed-hosts",
             value_delimiter = ',',
-            default_values_t = vec!["localhost".to_string(), "127.0.0.1".to_string()]
+            default_values_t = Config::DEFAULT_HTTP_ALLOWED_HOSTS.iter().map(|&s| s.to_string())
         )]
         allowed_hosts: Vec<String>,
     },
@@ -169,13 +160,18 @@ enum Command {
 
 impl From<&Cli> for Config {
     fn from(cli: &Cli) -> Self {
+        let backend = cli.db_backend;
+
         let mut config = Self {
-            db_backend: cli.db_backend,
+            db_backend: backend,
             db_host: cli.db_host.clone(),
-            db_port: cli.db_port,
-            db_user: cli.db_user.clone(),
-            db_password: cli.db_password.clone(),
-            db_name: cli.db_name.clone(),
+            db_port: cli.db_port.unwrap_or_else(|| backend.default_port()),
+            db_user: cli
+                .db_user
+                .clone()
+                .unwrap_or_else(|| backend.default_user().into()),
+            db_password: cli.db_password.clone().unwrap_or_default(),
+            db_name: cli.db_name.clone().unwrap_or_default(),
             db_charset: cli.db_charset.clone(),
             db_ssl: cli.db_ssl,
             db_ssl_ca: cli.db_ssl_ca.clone(),
@@ -186,10 +182,16 @@ impl From<&Cli> for Config {
             db_max_pool_size: cli.max_pool_size,
             log_level: cli.log_level.clone(),
             log_file: cli.log_file.clone(),
-            http_host: None,
-            http_port: None,
-            http_allowed_origins: None,
-            http_allowed_hosts: None,
+            http_host: Config::DEFAULT_HTTP_HOST.into(),
+            http_port: Config::DEFAULT_HTTP_PORT,
+            http_allowed_origins: Config::DEFAULT_HTTP_ALLOWED_ORIGINS
+                .iter()
+                .map(|&s| s.into())
+                .collect(),
+            http_allowed_hosts: Config::DEFAULT_HTTP_ALLOWED_HOSTS
+                .iter()
+                .map(|&s| s.into())
+                .collect(),
         };
 
         if let Some(Command::Http {
@@ -199,10 +201,10 @@ impl From<&Cli> for Config {
             allowed_hosts,
         }) = &cli.command
         {
-            config.http_host = Some(host.clone());
-            config.http_port = Some(*port);
-            config.http_allowed_origins = Some(allowed_origins.clone());
-            config.http_allowed_hosts = Some(allowed_hosts.clone());
+            config.http_host.clone_from(host);
+            config.http_port = *port;
+            config.http_allowed_origins.clone_from(allowed_origins);
+            config.http_allowed_hosts.clone_from(allowed_hosts);
         }
 
         config
@@ -285,24 +287,15 @@ async fn run_stdio(server: Server) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn run_http(backend: Backend, config: &Config) -> Result<(), Box<dyn std::error::Error>> {
-    let host = config
-        .http_host
-        .as_deref()
-        .expect("http subcommand sets host");
-    let port = config.http_port.expect("http subcommand sets port");
-    let allowed_origins = config
-        .http_allowed_origins
-        .as_ref()
-        .expect("http subcommand sets allowed_origins");
-
-    let bind_addr = format!("{host}:{port}");
+    let bind_addr = format!("{}:{}", config.http_host, config.http_port);
     info!("Starting MCP server via HTTP transport on {bind_addr}...");
 
     let ct = CancellationToken::new();
 
     let cors = tower_http::cors::CorsLayer::new()
         .allow_origin(
-            allowed_origins
+            config
+                .http_allowed_origins
                 .iter()
                 .filter_map(|o| o.parse().ok())
                 .collect::<Vec<axum::http::HeaderValue>>(),

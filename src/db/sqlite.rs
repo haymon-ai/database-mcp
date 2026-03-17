@@ -34,17 +34,14 @@ impl SqliteBackend {
     ///
     /// Returns [`AppError::Connection`] if the database file cannot be opened.
     pub async fn new(config: &Config) -> Result<Self, AppError> {
-        let url = format!("sqlite:{}", config.db_name.as_deref().unwrap_or(""));
+        let url = format!("sqlite:{}", config.db_name);
         let pool = SqlitePoolOptions::new()
             .max_connections(1) // SQLite is single-writer
             .connect(&url)
             .await
             .map_err(|e| AppError::Connection(format!("Failed to open SQLite: {e}")))?;
 
-        info!(
-            "SQLite connection initialized: {}",
-            config.db_name.as_deref().unwrap_or("")
-        );
+        info!("SQLite connection initialized: {}", config.db_name);
 
         Ok(Self {
             pool,
