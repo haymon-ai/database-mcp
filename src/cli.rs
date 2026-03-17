@@ -31,7 +31,7 @@ struct Cli {
     command: Option<Command>,
 
     /// Database backend
-    #[arg(long = "db-backend", env = "DB_BACKEND", global = true)]
+    #[arg(long = "db-backend", env = "DB_BACKEND", default_value_t = Config::DEFAULT_DB_BACKEND, global = true)]
     db_backend: DatabaseBackend,
 
     /// Database host
@@ -337,4 +337,60 @@ async fn run_http(backend: Backend, config: &Config) -> Result<(), Box<dyn std::
         .await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_db_backend_after_http_subcommand() {
+        let cli = Cli::try_parse_from(["sql-mcp", "http", "--db-backend", "mysql"]).unwrap();
+        assert_eq!(cli.db_backend, DatabaseBackend::Mysql);
+        assert!(matches!(cli.command, Some(Command::Http { .. })));
+    }
+
+    #[test]
+    fn parse_db_backend_before_http_subcommand() {
+        let cli = Cli::try_parse_from(["sql-mcp", "--db-backend", "mysql", "http"]).unwrap();
+        assert_eq!(cli.db_backend, DatabaseBackend::Mysql);
+        assert!(matches!(cli.command, Some(Command::Http { .. })));
+    }
+
+    #[test]
+    fn parse_db_backend_with_no_subcommand() {
+        let cli = Cli::try_parse_from(["sql-mcp", "--db-backend", "postgres"]).unwrap();
+        assert_eq!(cli.db_backend, DatabaseBackend::Postgres);
+        assert!(cli.command.is_none());
+    }
+
+    #[test]
+    fn parse_multiple_global_args_after_subcommand() {
+        let cli = Cli::try_parse_from([
+            "sql-mcp",
+            "http",
+            "--db-backend",
+            "mysql",
+            "--db-user",
+            "root",
+            "--db-name",
+            "mydb",
+        ])
+        .unwrap();
+        assert_eq!(cli.db_backend, DatabaseBackend::Mysql);
+        assert_eq!(cli.db_user, Some("root".into()));
+        assert_eq!(cli.db_name, Some("mydb".into()));
+    }
+
+    #[test]
+    fn parse_db_backend_defaults_to_mysql() {
+        let cli = Cli::try_parse_from(["sql-mcp", "http"]).unwrap();
+        assert_eq!(cli.db_backend, DatabaseBackend::Mysql);
+    }
+
+    #[test]
+    fn cli_flag_overrides_default_backend() {
+        let cli = Cli::try_parse_from(["sql-mcp", "http", "--db-backend", "postgres"]).unwrap();
+        assert_eq!(cli.db_backend, DatabaseBackend::Postgres);
+    }
 }

@@ -14,7 +14,9 @@ A single-binary [MCP](https://modelcontextprotocol.io/) server for SQL databases
 
 ### Using `.mcp.json` (recommended)
 
-Add a `.mcp.json` file to your project root. MCP clients (Claude Desktop, Cursor, etc.) read this file and start the server with the configured environment variables automatically:
+Add a `.mcp.json` file to your project root. MCP clients read this file and configure the server automatically.
+
+**Stdio transport** — the client starts and manages the server process:
 
 ```json
 {
@@ -33,6 +35,26 @@ Add a `.mcp.json` file to your project root. MCP clients (Claude Desktop, Cursor
   }
 }
 ```
+
+**HTTP transport** — you start the server yourself, the client connects to it:
+
+```bash
+# Start the server first
+sql-mcp http --db-backend mysql --db-user root --db-name mydb --port 9001
+```
+
+```json
+{
+  "mcpServers": {
+    "sql-mcp": {
+      "type": "http",
+      "url": "http://127.0.0.1:9001/mcp"
+    }
+  }
+}
+```
+
+> **Note:** The `"type": "http"` field is required for HTTP transport. Without it, clients like Claude Code will reject the config.
 
 ### Using CLI flags
 

@@ -13,10 +13,6 @@
 //!
 //! [`Config`] implements [`Debug`] manually to redact the database password.
 
-// ---------------------------------------------------------------------------
-// Errors
-// ---------------------------------------------------------------------------
-
 /// Errors that can occur during configuration validation.
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
@@ -40,6 +36,17 @@ pub enum DatabaseBackend {
     Postgres,
     /// `SQLite` file-based database.
     Sqlite,
+}
+
+impl std::fmt::Display for DatabaseBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Mysql => write!(f, "mysql"),
+            Self::Mariadb => write!(f, "mariadb"),
+            Self::Postgres => write!(f, "postgres"),
+            Self::Sqlite => write!(f, "sqlite"),
+        }
+    }
 }
 
 impl DatabaseBackend {
@@ -159,6 +166,8 @@ impl std::fmt::Debug for Config {
 }
 
 impl Config {
+    /// Default database backend.
+    pub const DEFAULT_DB_BACKEND: DatabaseBackend = DatabaseBackend::Mysql;
     /// Default database host.
     pub const DEFAULT_DB_HOST: &'static str = "localhost";
     /// Default read-only mode.
@@ -216,10 +225,6 @@ impl Config {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
