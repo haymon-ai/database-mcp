@@ -4,39 +4,23 @@
 //! ./tests/run.sh --filter postgres
 //! ```
 
-use sql_mcp::config::{Config, DatabaseBackend};
+use sql_mcp::config::{DatabaseBackend, DatabaseConfig};
 use sql_mcp::db::backend::Backend;
 use sql_mcp::db::postgres::PostgresBackend;
 
-fn test_config() -> Config {
-    let host = std::env::var("DB_HOST").unwrap_or_else(|_| "127.0.0.1".into());
-    let port: u16 = std::env::var("DB_PORT")
-        .ok()
-        .and_then(|p| p.parse().ok())
-        .unwrap_or(5432);
-    let user = std::env::var("DB_USER").unwrap_or_else(|_| "postgres".into());
-    let password = std::env::var("DB_PASSWORD").unwrap_or_default();
-
-    Config {
-        db_backend: DatabaseBackend::Postgres,
-        db_host: host,
-        db_port: port,
-        db_user: user,
-        db_password: password,
-        db_name: "mcp".into(),
-        db_read_only: false,
-        db_max_pool_size: 10,
-        db_charset: None,
-        db_ssl: false,
-        db_ssl_ca: None,
-        db_ssl_cert: None,
-        db_ssl_key: None,
-        db_ssl_verify_cert: true,
-        log_level: "info".into(),
-        http_host: "127.0.0.1".into(),
-        http_port: 9001,
-        http_allowed_origins: vec!["http://localhost".into()],
-        http_allowed_hosts: vec!["localhost".into()],
+fn test_config() -> DatabaseConfig {
+    DatabaseConfig {
+        backend: DatabaseBackend::Postgres,
+        host: std::env::var("DB_HOST").unwrap_or_else(|_| "127.0.0.1".into()),
+        port: std::env::var("DB_PORT")
+            .ok()
+            .and_then(|p| p.parse().ok())
+            .unwrap_or(5432),
+        user: std::env::var("DB_USER").unwrap_or_else(|_| "postgres".into()),
+        password: std::env::var("DB_PASSWORD").ok(),
+        name: Some("mcp".into()),
+        read_only: false,
+        ..DatabaseConfig::default()
     }
 }
 
@@ -50,8 +34,8 @@ async fn backend() -> Backend {
 }
 
 async fn readonly_backend() -> Backend {
-    let config = Config {
-        db_read_only: true,
+    let config = DatabaseConfig {
+        read_only: true,
         ..test_config()
     };
     Backend::Postgres(
