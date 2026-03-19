@@ -102,6 +102,15 @@ impl MysqlBackend {
         }
     }
 
+    /// Creates a `MySQL` backend from an existing connection pool.
+    ///
+    /// Intended for use in tests where the pool is managed externally
+    /// (e.g., by `#[sqlx::test]`).
+    #[must_use]
+    pub fn from_pool(pool: MySqlPool, read_only: bool) -> Self {
+        Self { pool, read_only }
+    }
+
     /// Builds a sqlx connection URL from individual config fields.
     fn build_connection_url(config: &Config) -> String {
         let mut url = format!(

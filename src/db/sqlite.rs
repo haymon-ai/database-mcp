@@ -51,6 +51,15 @@ impl SqliteBackend {
 }
 
 impl SqliteBackend {
+    /// Creates a `SQLite` backend from an existing connection pool.
+    ///
+    /// Intended for use in tests where the pool is managed externally
+    /// (e.g., by `#[sqlx::test]`).
+    #[must_use]
+    pub fn from_pool(pool: SqlitePool, read_only: bool) -> Self {
+        Self { pool, read_only }
+    }
+
     /// Wraps `name` in double quotes for safe use in `SQLite` SQL statements.
     ///
     /// Escapes internal double quotes by doubling them.

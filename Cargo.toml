@@ -10,7 +10,7 @@ categories = ["database", "command-line-utilities"]
 
 [dependencies]
 rmcp = { version = "1.2", features = ["server", "macros", "transport-io", "transport-streamable-http-server"] }
-sqlx = { version = "0.8", features = ["runtime-tokio", "runtime-tokio-rustls", "mysql", "postgres", "sqlite"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "runtime-tokio-rustls", "mysql", "postgres", "sqlite", "macros"] }
 enum_dispatch = "0.3"
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["rt"] }
@@ -45,6 +45,9 @@ suspicious = { level = "warn", priority = -1 }
 multiple_crate_versions = "allow"          # Transitive deps, not our control
 struct_excessive_bools = "allow"           # Config struct legitimately has SSL bools
 module_name_repetitions = "allow"          # e.g. db::backend::DatabaseBackend is fine
+
+[dev-dependencies]
+anyhow = "1"
 
 [[test]]
 name = "mysql"

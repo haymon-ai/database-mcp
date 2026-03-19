@@ -1849,6 +1849,7 @@ dependencies = [
 name = "sql-mcp"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "axum",
  "clap",
  "enum_dispatch",

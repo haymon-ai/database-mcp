@@ -4,8 +4,12 @@ set -euo pipefail
 # =============================================================================
 # run.sh — Run functional tests against database containers
 #
-# Follows the sqlx test pattern: each service in compose.yml uses random port
-# assignment and seeds via /docker-entrypoint-initdb.d/ volume mounts.
+# Each test uses #[sqlx::test] for per-test database isolation. Docker
+# containers only need to provide a running server — schema and seed data
+# are applied per test via sqlx migrations.
+#
+# Readiness is determined by Docker Compose healthchecks defined in
+# compose.yml — no custom polling logic needed.
 #
 # Usage:
 #   ./tests/run.sh                     # Run full matrix
@@ -14,17 +18,17 @@ set -euo pipefail
 #   ./tests/run.sh --help              # Show usage
 #
 # Environment:
-#   TIMEOUT=30   Container readiness timeout in seconds (default: 30)
+#   TIMEOUT=60   Container healthcheck timeout in seconds (default: 60)
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/compose.yml"
-TIMEOUT="${TIMEOUT:-30}"
+TIMEOUT="${TIMEOUT:-60}"
 
 # Matrix: service_name:db_type:container_port:test_binary
 #   service_name   — matches compose.yml service
-#   db_type        — DATABASE_TYPE env var for Rust tests
+#   db_type        — used for DATABASE_URL construction
 #   container_port — internal port to resolve via `docker compose port`
 #   test_binary    — cargo test binary name (from [[test]] in Cargo.toml)
 MATRIX=(
@@ -65,7 +69,7 @@ Examples:
   ./tests/run.sh --filter sqlite   # SQLite only
 
 Environment:
-  TIMEOUT=30   Container readiness timeout in seconds (default: 30)
+  TIMEOUT=60   Container healthcheck timeout in seconds (default: 60)
 EOF
 }
 
@@ -82,32 +86,22 @@ check_docker() {
     fi
 }
 
-wait_for_ready() {
+wait_for_healthy() {
     local service="$1"
-    local db_type="$2"
-    local host_port="$3"
+    local host_port="$2"
     local elapsed=0
 
-    echo -n "  Waiting for readiness..."
+    echo -n "  Waiting for healthy..."
     while [ $elapsed -lt "$TIMEOUT" ]; do
-        case "$db_type" in
-            mysql)
-                if docker compose -f "$COMPOSE_FILE" exec -T "$service" \
-                    mariadb -u root mcp -e "SELECT 1 FROM post_tags LIMIT 1" &>/dev/null 2>&1 \
-                || docker compose -f "$COMPOSE_FILE" exec -T "$service" \
-                    mysql -u root mcp -e "SELECT 1 FROM post_tags LIMIT 1" &>/dev/null 2>&1; then
-                    echo " OK (${elapsed}s)"
-                    return 0
-                fi
-                ;;
-            postgres)
-                if docker compose -f "$COMPOSE_FILE" exec -T "$service" \
-                    pg_isready -U postgres &>/dev/null 2>&1; then
-                    echo " OK (${elapsed}s)"
-                    return 0
-                fi
-                ;;
-        esac
+        local health
+        health=$(docker compose -f "$COMPOSE_FILE" ps --format '{{.Health}}' "$service" 2>/dev/null || echo "")
+        if [ "$health" = "healthy" ]; then
+            # Verify host port is accepting connections (port mapping lag)
+            if (echo > /dev/tcp/127.0.0.1/"$host_port") 2>/dev/null; then
+                echo " OK (${elapsed}s)"
+                return 0
+            fi
+        fi
         sleep 1
         elapsed=$((elapsed + 1))
     done
@@ -135,19 +129,11 @@ run_entry() {
     local test_output
 
     if [ "$db_type" = "sqlite" ]; then
-        # SQLite: no container — create temp file, seeding happens in Rust via include_str!
-        local tmpdir
-        tmpdir=$(mktemp -d)
-        local db_path="${tmpdir}/mcp.db"
-
-        echo "  Running cargo test... (seeds via sqlx)"
+        # SQLite: no container — sqlx::test auto-creates file-based databases
+        echo "  Running cargo test... (sqlx::test manages databases)"
         test_output=$(
-            DB_PATH="$db_path" \
-            MCP_READ_ONLY=false \
-            cargo test --test "$test_bin" -- --test-threads=1 2>&1
+            cargo test --test "$test_bin" 2>&1
         ) || test_exit=$?
-
-        rm -rf "$tmpdir"
     else
         # Container-based databases (MySQL, MariaDB, PostgreSQL)
         echo -n "  Starting container..."
@@ -161,7 +147,7 @@ run_entry() {
         local host_port
         host_port=$(docker compose -f "$COMPOSE_FILE" port "$service" "$container_port" 2>/dev/null | cut -d: -f2)
 
-        if ! wait_for_ready "$service" "$db_type" "$host_port"; then
+        if ! wait_for_healthy "$service" "$host_port"; then
             echo "  Container failed to become healthy. Logs:"
             docker compose -f "$COMPOSE_FILE" logs "$service" 2>/dev/null | tail -20
             docker compose -f "$COMPOSE_FILE" stop "$service" 2>/dev/null || true
@@ -170,10 +156,21 @@ run_entry() {
             OVERALL_EXIT=1; return
         fi
 
+        # Build DATABASE_URL for sqlx::test
+        local database_url
+        case "$db_type" in
+            mysql)
+                database_url="mysql://root:@127.0.0.1:${host_port}/mysql"
+                ;;
+            postgres)
+                database_url="postgresql://postgres@127.0.0.1:${host_port}/postgres"
+                ;;
+        esac
+
         echo "  Running cargo test..."
         test_output=$(
-            DB_HOST=127.0.0.1 DB_PORT="$host_port" \
-            cargo test --test "$test_bin" -- --test-threads=1 2>&1
+            DATABASE_URL="$database_url" \
+            cargo test --test "$test_bin" 2>&1
         ) || test_exit=$?
 
         echo -n "  Stopping container..."

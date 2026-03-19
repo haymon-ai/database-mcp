@@ -1,120 +1,53 @@
 //! Functional integration tests for SQLite.
 //!
-//! Unlike MySQL/PostgreSQL, SQLite needs no container — it creates a temporary
-//! file and seeds it from `tests/sqlite/setup.sql` via sqlx.
+//! Uses `#[sqlx::test]` for per-test database isolation. Each test gets a fresh
+//! temporary file-based database with schema and seed data from
+//! `migrations/0_setup.sql`. No Docker container needed.
 //!
 //! ```bash
 //! ./tests/run.sh --filter sqlite
 //! ```
 
-use sql_mcp::config::{Config, DatabaseBackend};
 use sql_mcp::db::backend::Backend;
 use sql_mcp::db::sqlite::SqliteBackend;
-use tokio::sync::OnceCell;
+use sqlx::SqlitePool;
 
-static SEEDED: OnceCell<()> = OnceCell::const_new();
+const MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("tests/sqlite/migrations");
 
-async fn seed_db(db_path: &str) {
-    let pool = sqlx::SqlitePool::connect(&format!("sqlite:{db_path}?mode=rwc"))
-        .await
-        .expect("Failed to open SQLite for seeding");
-    let seed_sql = include_str!("setup.sql");
-    // Strip SQL comments before splitting on semicolons
-    let stripped: String = seed_sql
-        .lines()
-        .filter(|line| !line.trim_start().starts_with("--"))
-        .collect::<Vec<_>>()
-        .join("\n");
-    for statement in stripped.split(';') {
-        let trimmed = statement.trim();
-        if !trimmed.is_empty() {
-            sqlx::query(trimmed)
-                .execute(&pool)
-                .await
-                .unwrap_or_else(|e| panic!("Seed failed on: {trimmed}\nError: {e}"));
-        }
-    }
-    pool.close().await;
+fn backend(pool: SqlitePool, read_only: bool) -> Backend {
+    Backend::Sqlite(SqliteBackend::from_pool(pool, read_only))
 }
 
-fn sqlite_config(db_path: &str, read_only: bool) -> Config {
-    Config {
-        db_backend: DatabaseBackend::Sqlite,
-        db_host: "localhost".into(),
-        db_port: 0,
-        db_user: String::new(),
-        db_password: String::new(),
-        db_name: format!("{db_path}?mode=rwc"),
-        db_read_only: read_only,
-        db_max_pool_size: 10,
-        db_charset: None,
-        db_ssl: false,
-        db_ssl_ca: None,
-        db_ssl_cert: None,
-        db_ssl_key: None,
-        db_ssl_verify_cert: true,
-        log_level: "info".into(),
-        http_host: "127.0.0.1".into(),
-        http_port: 9001,
-        http_allowed_origins: vec!["http://localhost".into()],
-        http_allowed_hosts: vec!["localhost".into()],
-    }
-}
-
-async fn backend() -> Backend {
-    let db_path = std::env::var("DB_PATH").expect("DB_PATH must be set");
-    SEEDED.get_or_init(|| seed_db(&db_path)).await;
-    let config = sqlite_config(&db_path, false);
-    Backend::Sqlite(
-        SqliteBackend::new(&config)
-            .await
-            .expect("SQLite open failed"),
-    )
-}
-
-async fn readonly_backend() -> Backend {
-    let db_path = std::env::var("DB_PATH").expect("DB_PATH must be set");
-    SEEDED.get_or_init(|| seed_db(&db_path)).await;
-    let config = sqlite_config(&db_path, true);
-    Backend::Sqlite(
-        SqliteBackend::new(&config)
-            .await
-            .expect("SQLite open failed"),
-    )
-}
-
-#[tokio::test]
-async fn it_lists_databases() {
-    let b = backend().await;
-    let result = b.tool_list_databases().await.expect("failed");
-    let dbs: Vec<String> = serde_json::from_str(&result).expect("bad json");
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn it_lists_databases(pool: SqlitePool) -> anyhow::Result<()> {
+    let result = backend(pool, false).tool_list_databases().await?;
+    let dbs: Vec<String> = serde_json::from_str(&result)?;
     assert!(
         dbs.iter().any(|db| db == "main"),
         "Expected 'main' in: {dbs:?}"
     );
+    Ok(())
 }
 
-#[tokio::test]
-async fn it_lists_tables() {
-    let b = backend().await;
-    let result = b.tool_list_tables("main").await.expect("failed");
-    let tables: Vec<String> = serde_json::from_str(&result).expect("bad json");
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn it_lists_tables(pool: SqlitePool) -> anyhow::Result<()> {
+    let result = backend(pool, false).tool_list_tables("main").await?;
+    let tables: Vec<String> = serde_json::from_str(&result)?;
     for expected in ["users", "posts", "tags", "post_tags"] {
         assert!(
             tables.iter().any(|t| t == expected),
             "Missing '{expected}' in: {tables:?}"
         );
     }
+    Ok(())
 }
 
-#[tokio::test]
-async fn it_gets_table_schema() {
-    let b = backend().await;
-    let result = b
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn it_gets_table_schema(pool: SqlitePool) -> anyhow::Result<()> {
+    let result = backend(pool, false)
         .tool_get_table_schema("main", "users")
-        .await
-        .expect("failed");
-    let schema: serde_json::Value = serde_json::from_str(&result).expect("bad json");
+        .await?;
+    let schema: serde_json::Value = serde_json::from_str(&result)?;
     let columns: Vec<String> = schema
         .as_object()
         .expect("object")
@@ -127,36 +60,34 @@ async fn it_gets_table_schema() {
             "Missing '{col}' in: {columns:?}"
         );
     }
+    Ok(())
 }
 
-#[tokio::test]
-async fn it_gets_table_relations() {
-    let b = backend().await;
-    let result = b
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn it_gets_table_relations(pool: SqlitePool) -> anyhow::Result<()> {
+    let result = backend(pool, false)
         .tool_get_table_schema_with_relations("main", "posts")
-        .await
-        .expect("failed");
+        .await?;
     assert!(
         result.contains("user_id") || result.contains("users"),
         "Expected foreign key reference in: {result}"
     );
+    Ok(())
 }
 
-#[tokio::test]
-async fn it_executes_sql() {
-    let b = backend().await;
-    let result = b
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn it_executes_sql(pool: SqlitePool) -> anyhow::Result<()> {
+    let result = backend(pool, false)
         .tool_execute_sql("SELECT * FROM users ORDER BY id", "main", None)
-        .await
-        .expect("failed");
-    let rows: Vec<serde_json::Value> = serde_json::from_str(&result).expect("bad json");
+        .await?;
+    let rows: Vec<serde_json::Value> = serde_json::from_str(&result)?;
     assert_eq!(rows.len(), 3, "Expected 3 users, got {}", rows.len());
+    Ok(())
 }
 
-#[tokio::test]
-async fn it_blocks_writes_in_read_only_mode() {
-    let b = readonly_backend().await;
-    let result = b
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn it_blocks_writes_in_read_only_mode(pool: SqlitePool) {
+    let result = backend(pool, true)
         .tool_execute_sql(
             "INSERT INTO users (name, email) VALUES ('Hacker', 'hack@evil.com')",
             "main",
@@ -169,9 +100,9 @@ async fn it_blocks_writes_in_read_only_mode() {
     );
 }
 
-#[tokio::test]
-async fn it_has_consistent_seed_data() {
-    let b = backend().await;
+#[sqlx::test(migrator = "MIGRATOR")]
+async fn it_has_consistent_seed_data(pool: SqlitePool) -> anyhow::Result<()> {
+    let b = backend(pool, false);
 
     async fn check(b: &Backend, table: &str, expected: usize) {
         let sql = format!("SELECT CAST(COUNT(*) AS CHAR) as cnt FROM {table}");
@@ -198,4 +129,5 @@ async fn it_has_consistent_seed_data() {
     check(&b, "posts", 5).await;
     check(&b, "tags", 4).await;
     check(&b, "post_tags", 6).await;
+    Ok(())
 }
