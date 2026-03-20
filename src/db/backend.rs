@@ -47,6 +47,7 @@ pub trait DatabaseBackend {
 /// Concrete database backend — no dynamic dispatch.
 #[derive(Debug, Clone)]
 #[enum_dispatch(DatabaseBackend)]
+#[allow(clippy::large_enum_variant)]
 pub enum Backend {
     /// `MySQL`/`MariaDB` via sqlx.
     Mysql(MysqlBackend),

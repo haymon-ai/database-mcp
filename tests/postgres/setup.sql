@@ -59,3 +59,18 @@ INSERT INTO post_tags (post_id, tag_id) VALUES
     (2, 1),
     (3, 3),
     (3, 1);
+
+-- Cross-database test setup: create a second database with its own schema
+CREATE DATABASE mcp_cross;
+\c mcp_cross
+
+CREATE TABLE IF NOT EXISTS events (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    payload TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO events (name, payload) VALUES
+    ('signup', '{"user": "alice"}'),
+    ('login', '{"user": "bob"}');

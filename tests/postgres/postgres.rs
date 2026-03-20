@@ -125,6 +125,89 @@ async fn it_creates_database() {
 }
 
 #[tokio::test]
+async fn it_lists_tables_cross_database() {
+    let b = backend().await;
+    let result = b.tool_list_tables("mcp_cross").await.expect("failed");
+    let tables: Vec<String> = serde_json::from_str(&result).expect("bad json");
+    assert!(
+        tables.iter().any(|t| t == "events"),
+        "Expected 'events' in mcp_cross tables: {tables:?}"
+    );
+    // Ensure tables from default db are NOT in the cross-db listing
+    assert!(
+        !tables.iter().any(|t| t == "users"),
+        "Should not see 'users' from default db in mcp_cross: {tables:?}"
+    );
+}
+
+#[tokio::test]
+async fn it_executes_sql_cross_database() {
+    let b = backend().await;
+    let result = b
+        .tool_execute_sql("SELECT * FROM events ORDER BY id", "mcp_cross", None)
+        .await
+        .expect("failed");
+    let rows: Vec<serde_json::Value> = serde_json::from_str(&result).expect("bad json");
+    assert_eq!(rows.len(), 2, "Expected 2 events, got {}", rows.len());
+}
+
+#[tokio::test]
+async fn it_gets_table_schema_cross_database() {
+    let b = backend().await;
+    let result = b.tool_get_table_schema("mcp_cross", "events").await.expect("failed");
+    let schema: serde_json::Value = serde_json::from_str(&result).expect("bad json");
+    let columns: Vec<String> = schema.as_object().expect("object").keys().cloned().collect();
+    for col in ["id", "name", "payload", "created_at"] {
+        assert!(
+            columns.iter().any(|c| c == col),
+            "Missing '{col}' in mcp_cross events schema: {columns:?}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn it_lists_databases_includes_cross_db() {
+    let b = backend().await;
+    let result = b.tool_list_databases().await.expect("failed");
+    let dbs: Vec<String> = serde_json::from_str(&result).expect("bad json");
+    assert!(
+        dbs.iter().any(|db| db == "mcp_cross"),
+        "Expected 'mcp_cross' in databases: {dbs:?}"
+    );
+}
+
+#[tokio::test]
+async fn it_blocks_writes_cross_database_in_read_only_mode() {
+    let b = readonly_backend().await;
+    let result = b
+        .tool_execute_sql("INSERT INTO events (name) VALUES ('hack')", "mcp_cross", None)
+        .await;
+    assert!(
+        result.is_err(),
+        "Expected error for write in read-only mode on cross-database"
+    );
+}
+
+#[tokio::test]
+async fn it_returns_error_for_nonexistent_database() {
+    let b = backend().await;
+    let result = b.tool_list_tables("nonexistent_db_xyz").await;
+    assert!(result.is_err(), "Expected error for nonexistent database");
+}
+
+#[tokio::test]
+async fn it_uses_default_pool_for_matching_database() {
+    let b = backend().await;
+    // Explicitly pass the default database name — should use the default pool
+    let result = b.tool_list_tables("mcp").await.expect("failed");
+    let tables: Vec<String> = serde_json::from_str(&result).expect("bad json");
+    assert!(
+        tables.iter().any(|t| t == "users"),
+        "Expected 'users' when explicitly passing default db: {tables:?}"
+    );
+}
+
+#[tokio::test]
 async fn it_has_consistent_seed_data() {
     let b = backend().await;
 
