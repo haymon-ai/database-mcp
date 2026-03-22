@@ -4,9 +4,6 @@ tag_prefix = "v"
 branch_whitelist = ["master"]
 skip_ci = "[skip ci]"
 
-# Valid commit scopes (restricted to project modules)
-scopes = ["cli", "config", "db", "http", "sqlx_to_json"]
-
 # Pre-bump: quality gates + Cargo.toml version update
 pre_bump_hooks = [
     "cargo fmt --check",
@@ -36,7 +33,7 @@ remote = "github.com"
 owner = "haymon-ai"
 repository = "sql-mcp"
 
-# Commit type visibility in changelog
+# Commit type visibility in the changelog
 [commit_types]
 chore = { omit_from_changelog = true }
 style = { omit_from_changelog = true }

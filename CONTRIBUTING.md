@@ -151,18 +151,6 @@ Every commit message must follow this format:
 | `chore`    | Other changes that don't modify src or test files    |
 | `revert`   | Reverts a previous commit                            |
 
-### Scopes
-
-Scopes are optional but validated. If you include a scope, it must be one of the following:
-
-- `cli` — command-line interface
-- `config` — configuration and CLI parsing
-- `db` — database backend logic
-- `http` — HTTP transport layer
-- `sqlx_to_json` — row-to-JSON conversion crate
-
-Scopeless commits (e.g., `fix: resolve crash`) are always valid.
-
 ### Examples
 
 ```
@@ -216,40 +204,4 @@ Migrate to individual DB_* environment variables.
 
 ## Versioning & Releases
 
-This project follows [Semantic Versioning 2.0.0](https://semver.org/):
-
-- **MAJOR** (X.0.0): Breaking changes — incompatible API or behavior changes
-- **MINOR** (0.X.0): New features — backwards-compatible additions
-- **PATCH** (0.0.X): Bug fixes — backwards-compatible fixes
-
-### Release Process
-
-Releases are managed with [cocogitto](https://github.com/cocogitto/cocogitto). To create a release:
-
-```bash
-# Preview what would happen (no changes made)
-cog bump --auto --dry-run
-
-# Execute the release
-cog bump --auto
-```
-
-The `cog bump --auto` command:
-
-1. Calculates the next version from commit history (`fix` = patch, `feat` = minor, `BREAKING CHANGE` = major)
-2. Runs quality gates (`cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test --lib`)
-3. Updates the version in `Cargo.toml`
-4. Generates/updates `CHANGELOG.md`
-5. Creates a version commit and tag (e.g., `v0.2.0`)
-6. Pushes the commit and tag to the remote
-
-The pushed tag triggers the CI release workflow, which builds binaries for all supported platforms and creates a GitHub release with the changelog.
-
-You can also force a specific version:
-
-```bash
-cog bump --major            # force major bump
-cog bump --minor            # force minor bump
-cog bump --patch            # force patch bump
-cog bump --version 1.0.0    # set exact version
-```
+This project follows [Semantic Versioning 2.0.0](https://semver.org/). Releases are managed by maintainers.
