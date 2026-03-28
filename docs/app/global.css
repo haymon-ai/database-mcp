@@ -4,6 +4,7 @@
 
 :root {
   --fd-layout-width: 100%;
+  --color-fd-background: #ffffff;
 }
 
 html {
@@ -13,4 +14,3 @@ html {
 html:has(body[data-scroll-locked]) {
   scrollbar-gutter: auto;
 }
-

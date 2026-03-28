@@ -1,16 +1,15 @@
-import Link from 'next/link';
+import { Hero } from '@/components/homepage/hero';
+import { Databases } from '@/components/homepage/databases';
+import { Agents } from '@/components/homepage/agents';
 
 export default function HomePage() {
   return (
-    <div className="flex flex-col justify-center text-center flex-1">
-      <h1 className="text-2xl font-bold mb-4">Hello World</h1>
-      <p>
-        You can open{' '}
-        <Link href="/docs" className="font-medium underline">
-          /docs
-        </Link>{' '}
-        and see the documentation.
-      </p>
+    <div className="flex flex-col flex-1 w-full bg-white">
+      <Hero />
+      <hr className="mx-auto w-full max-w-4xl border-black/[0.08]" />
+      <Databases />
+      <hr className="mx-auto w-full max-w-4xl border-black/[0.08]" />
+      <Agents />
     </div>
   );
 }
