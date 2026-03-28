@@ -7,6 +7,52 @@
   --color-fd-background: #ffffff;
 }
 
+/* Code blocks: dark background with tighter radius */
+@layer utilities {
+  figure.shiki {
+    background-color: #0a0a0a;
+    border-color: #1a1a1a;
+    border-radius: 0.5rem;
+    box-shadow: none;
+  }
+}
+
+figure.shiki pre {
+  color: #e4e4e7 !important;
+}
+
+figure.shiki span[style] {
+  color: var(--shiki-dark) !important;
+}
+
+/* Tables: dark background to match code blocks */
+.prose table {
+  background-color: #0a0a0a !important;
+  border-radius: 0.5rem !important;
+  overflow: hidden;
+}
+
+.prose table th {
+  background-color: #141414 !important;
+  color: #e4e4e7 !important;
+  border-bottom-color: #2a2a2a !important;
+}
+
+.prose table td {
+  color: #d4d4d8 !important;
+  border-bottom-color: #1a1a1a !important;
+}
+
+.prose table tr:last-child td {
+  border-bottom: none !important;
+}
+
+.prose table code {
+  background-color: #1a1a1a !important;
+  color: #d4d4d8 !important;
+  border-color: #2a2a2a !important;
+}
+
 html {
   scrollbar-gutter: stable;
 }
