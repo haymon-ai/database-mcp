@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use rmcp::handler::server::common::{FromContextPart, schema_for_empty_input, schema_for_type};
-use rmcp::handler::server::router::tool::ToolRoute;
+use rmcp::handler::server::router::tool::{ToolRoute, ToolRouter};
 use rmcp::handler::server::tool::ToolCallContext;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::Tool;
@@ -157,6 +157,29 @@ pub fn create_database_route() -> ToolRoute<Server> {
     )
 }
 
+/// Builds a [`ToolRouter`] with the common tool set.
+///
+/// All backends share the same 5 read tools. Write tools are added
+/// conditionally based on `read_only` and `supports_create_database`.
+#[must_use]
+pub fn build_common_tool_router(read_only: bool, supports_create_database: bool) -> ToolRouter<Server> {
+    let mut router = ToolRouter::new();
+    router.add_route(list_databases_route());
+    router.add_route(list_tables_route());
+    router.add_route(get_table_schema_route());
+    router.add_route(get_table_schema_with_relations_route());
+    router.add_route(read_query_route());
+
+    if !read_only {
+        router.add_route(write_query_route());
+        if supports_create_database {
+            router.add_route(create_database_route());
+        }
+    }
+
+    router
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -265,6 +288,64 @@ mod tests {
             "schema should have database_name property"
         );
     }
+
+    // --- build_common_tool_router tests ---
+
+    /// Helper to collect tool names from a router.
+    fn tool_names(read_only: bool, supports_create_db: bool) -> Vec<String> {
+        build_common_tool_router(read_only, supports_create_db)
+            .list_all()
+            .into_iter()
+            .map(|t| t.name.to_string())
+            .collect()
+    }
+
+    #[test]
+    fn common_router_read_only_returns_5_read_tools() {
+        let names = tool_names(true, true);
+        assert_eq!(names.len(), 5);
+        assert!(names.contains(&"list_databases".to_string()));
+        assert!(names.contains(&"list_tables".to_string()));
+        assert!(names.contains(&"get_table_schema".to_string()));
+        assert!(names.contains(&"get_table_schema_with_relations".to_string()));
+        assert!(names.contains(&"read_query".to_string()));
+    }
+
+    #[test]
+    fn common_router_read_only_excludes_write_tools() {
+        let names = tool_names(true, true);
+        assert!(!names.contains(&"write_query".to_string()));
+        assert!(!names.contains(&"create_database".to_string()));
+    }
+
+    #[test]
+    fn common_router_read_only_without_create_db_returns_5_tools() {
+        // SQLite read-only: same 5 tools regardless of create_db flag
+        let names = tool_names(true, false);
+        assert_eq!(names.len(), 5);
+        assert!(!names.contains(&"write_query".to_string()));
+        assert!(!names.contains(&"create_database".to_string()));
+    }
+
+    #[test]
+    fn common_router_read_write_with_create_db_returns_7_tools() {
+        // MySQL/Postgres non-read-only
+        let names = tool_names(false, true);
+        assert_eq!(names.len(), 7);
+        assert!(names.contains(&"write_query".to_string()));
+        assert!(names.contains(&"create_database".to_string()));
+    }
+
+    #[test]
+    fn common_router_read_write_without_create_db_returns_6_tools() {
+        // SQLite non-read-only
+        let names = tool_names(false, false);
+        assert_eq!(names.len(), 6);
+        assert!(names.contains(&"write_query".to_string()));
+        assert!(!names.contains(&"create_database".to_string()));
+    }
+
+    // --- route schema tests ---
 
     #[test]
     fn read_and_write_query_share_same_schema_shape() {

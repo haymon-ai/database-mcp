@@ -2,7 +2,7 @@
 //!
 //! Defines [`Server`] which implements the MCP `ServerHandler`
 //! trait. Tool registration is delegated to each database backend
-//! via [`Backend::build_tool_router`].
+//! via [`tools::build_common_tool_router`].
 
 pub mod tools;
 
@@ -87,13 +87,13 @@ impl std::fmt::Debug for Server {
 impl Server {
     /// Creates a new MCP server with the given database backend.
     ///
-    /// The tool router is built by the backend, which decides
-    /// which tools to register based on its capabilities and
-    /// its own `read_only` configuration.
+    /// The tool router is built based on the backend's capabilities
+    /// and read-only setting. `SQLite` does not support `create_database`.
     #[must_use]
     pub fn new(backend: Backend) -> Self {
         let read_only = backend.read_only();
-        let tool_router = backend.build_tool_router();
+        let supports_create_database = !matches!(backend, Backend::Sqlite(_));
+        let tool_router = tools::build_common_tool_router(read_only, supports_create_database);
         Self {
             backend,
             read_only,
@@ -177,7 +177,7 @@ impl Server {
 
         let result = self
             .backend
-            .tool_execute_sql(&req.0.sql_query, &req.0.database_name, None)
+            .tool_execute_sql(&req.0.sql_query, &req.0.database_name)
             .await
             .map_err(map_error)?;
         Ok(CallToolResult::success(vec![Content::text(result)]))
@@ -194,7 +194,7 @@ impl Server {
     pub async fn write_query(&self, req: Parameters<QueryRequest>) -> Result<CallToolResult, ErrorData> {
         let result = self
             .backend
-            .tool_execute_sql(&req.0.sql_query, &req.0.database_name, None)
+            .tool_execute_sql(&req.0.sql_query, &req.0.database_name)
             .await
             .map_err(map_error)?;
         Ok(CallToolResult::success(vec![Content::text(result)]))

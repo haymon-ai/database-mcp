@@ -6,10 +6,6 @@ use crate::config::DatabaseConfig;
 use crate::db::backend::DatabaseBackend;
 use crate::db::identifier::validate_identifier;
 use crate::error::AppError;
-use crate::server::tools;
-use rmcp::handler::server::router::tool::ToolRouter;
-
-use crate::server::Server;
 use serde_json::{Value, json};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions, SqliteRow};
 use sqlx::{Row, SqlitePool};
@@ -41,28 +37,6 @@ impl std::fmt::Debug for SqliteBackend {
 }
 
 impl SqliteBackend {
-    /// Builds the tool router for `SQLite`.
-    ///
-    /// Always registers read tools. When not in read-only mode,
-    /// also registers `write_query`. Never registers `create_database`
-    /// since `SQLite` has no server-side database management.
-    #[must_use]
-    pub fn build_tool_router(read_only: bool) -> ToolRouter<Server> {
-        let mut router = ToolRouter::new();
-        router.add_route(tools::list_databases_route());
-        router.add_route(tools::list_tables_route());
-        router.add_route(tools::get_table_schema_route());
-        router.add_route(tools::get_table_schema_with_relations_route());
-        router.add_route(tools::read_query_route());
-
-        if !read_only {
-            router.add_route(tools::write_query_route());
-            // No create_database — SQLite doesn't support server-side database management
-        }
-
-        router
-    }
-
     /// Creates a new `SQLite` backend from configuration.
     ///
     /// # Errors
@@ -305,40 +279,5 @@ mod tests {
 
         assert_eq!(rows[1]["id"], Value::Number(2.into()));
         assert_eq!(rows[1]["name"], Value::String("bob".into()));
-    }
-
-    #[test]
-    fn build_tool_router_read_only_returns_5_read_tools() {
-        let router = SqliteBackend::build_tool_router(true);
-        let tools = router.list_all();
-        let names: Vec<&str> = tools.iter().map(|t| t.name.as_ref()).collect();
-
-        assert_eq!(tools.len(), 5);
-        assert!(names.contains(&"list_databases"));
-        assert!(names.contains(&"list_tables"));
-        assert!(names.contains(&"get_table_schema"));
-        assert!(names.contains(&"get_table_schema_with_relations"));
-        assert!(names.contains(&"read_query"));
-        assert!(!names.contains(&"write_query"));
-        assert!(!names.contains(&"create_database"));
-    }
-
-    #[test]
-    fn build_tool_router_read_write_returns_6_tools_no_create_database() {
-        let router = SqliteBackend::build_tool_router(false);
-        let tools = router.list_all();
-        let names: Vec<&str> = tools.iter().map(|t| t.name.as_ref()).collect();
-
-        assert_eq!(tools.len(), 6);
-        assert!(names.contains(&"list_databases"));
-        assert!(names.contains(&"list_tables"));
-        assert!(names.contains(&"get_table_schema"));
-        assert!(names.contains(&"get_table_schema_with_relations"));
-        assert!(names.contains(&"read_query"));
-        assert!(names.contains(&"write_query"));
-        assert!(
-            !names.contains(&"create_database"),
-            "SQLite must never expose create_database"
-        );
     }
 }

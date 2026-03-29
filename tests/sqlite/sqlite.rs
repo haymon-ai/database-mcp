@@ -83,7 +83,7 @@ async fn it_gets_table_relations() {
 async fn it_executes_sql() {
     let b = backend().await;
     let result = b
-        .tool_execute_sql("SELECT * FROM users ORDER BY id", "main", None)
+        .tool_execute_sql("SELECT * FROM users ORDER BY id", "main")
         .await
         .expect("failed");
     let rows: Vec<serde_json::Value> = serde_json::from_str(&result).expect("bad json");
@@ -97,7 +97,6 @@ async fn it_blocks_writes_in_read_only_mode() {
         .tool_execute_sql(
             "INSERT INTO users (name, email) VALUES ('Hacker', 'hack@evil.com')",
             "main",
-            None,
         )
         .await;
     assert!(result.is_err(), "Expected error for write in read-only mode");
@@ -109,7 +108,7 @@ async fn it_preserves_json_types() {
 
     // COUNT(*) should return a JSON number, not a string or null
     let result = b
-        .tool_execute_sql("SELECT COUNT(*) as cnt FROM users", "main", None)
+        .tool_execute_sql("SELECT COUNT(*) as cnt FROM users", "main")
         .await
         .expect("failed");
     let rows: Vec<serde_json::Value> = serde_json::from_str(&result).expect("bad json");
@@ -119,7 +118,7 @@ async fn it_preserves_json_types() {
 
     // Integer and text columns should have correct types
     let result = b
-        .tool_execute_sql("SELECT id, name FROM users ORDER BY id LIMIT 1", "main", None)
+        .tool_execute_sql("SELECT id, name FROM users ORDER BY id LIMIT 1", "main")
         .await
         .expect("failed");
     let rows: Vec<serde_json::Value> = serde_json::from_str(&result).expect("bad json");
@@ -142,7 +141,7 @@ async fn it_has_consistent_seed_data() {
     async fn check(b: &Backend, table: &str, expected: usize) {
         let sql = format!("SELECT CAST(COUNT(*) AS CHAR) as cnt FROM {table}");
         let result = b
-            .tool_execute_sql(&sql, "main", None)
+            .tool_execute_sql(&sql, "main")
             .await
             .unwrap_or_else(|e| panic!("count {table}: {e}"));
         let rows: Vec<serde_json::Value> = serde_json::from_str(&result).unwrap();

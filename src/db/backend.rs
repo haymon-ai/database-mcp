@@ -10,8 +10,6 @@ use crate::db::postgres::PostgresBackend;
 use crate::db::sqlite::SqliteBackend;
 use crate::db::validation::validate_read_only_with_dialect;
 use crate::error::AppError;
-use crate::server::Server;
-use rmcp::handler::server::router::tool::ToolRouter;
 use serde_json::Value;
 use sqlparser::dialect::Dialect;
 use tracing::{error, info};
@@ -126,19 +124,6 @@ impl DatabaseBackend for Backend {
 }
 
 impl Backend {
-    /// Builds the [`ToolRouter`] for the active backend variant.
-    ///
-    /// Each backend decides which tools to register based on
-    /// its capabilities and its own `read_only` configuration.
-    #[must_use]
-    pub fn build_tool_router(&self) -> ToolRouter<Server> {
-        match self {
-            Self::Mysql(b) => MysqlBackend::build_tool_router(b.read_only),
-            Self::Postgres(b) => PostgresBackend::build_tool_router(b.read_only),
-            Self::Sqlite(b) => SqliteBackend::build_tool_router(b.read_only),
-        }
-    }
-
     /// Lists all accessible databases as a JSON array.
     ///
     /// # Errors
@@ -197,24 +182,22 @@ impl Backend {
         Ok(serde_json::to_string_pretty(&result).unwrap_or_else(|_| "{}".into()))
     }
 
-    /// Executes a user-provided SQL query with read-only validation.
+    /// Executes a SQL query and returns results as a JSON string.
+    ///
+    /// Includes read-only validation as defence-in-depth. The `read_query`
+    /// tool handler also validates, but this ensures safety even when
+    /// calling `tool_execute_sql` directly (e.g. from integration tests).
     ///
     /// # Errors
     ///
-    /// Returns [`AppError`] if the identifier is invalid, the query is blocked
-    /// by read-only mode, or the backend query fails.
-    pub async fn tool_execute_sql(
-        &self,
-        sql_query: &str,
-        database_name: &str,
-        _parameters: Option<Vec<Value>>,
-    ) -> Result<String, AppError> {
+    /// Returns [`AppError`] if the query is blocked by read-only mode
+    /// or the backend query fails.
+    pub async fn tool_execute_sql(&self, sql_query: &str, database_name: &str) -> Result<String, AppError> {
         info!(
             "TOOL: execute_sql called. database_name={database_name}, sql_query={}",
             &sql_query[..sql_query.len().min(100)]
         );
 
-        // Read-only validation with the backend's dialect
         if self.read_only() {
             let dialect = self.dialect();
             validate_read_only_with_dialect(sql_query, dialect.as_ref())?;

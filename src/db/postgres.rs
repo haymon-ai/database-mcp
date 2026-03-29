@@ -8,11 +8,7 @@ use crate::config::DatabaseConfig;
 use crate::db::backend::DatabaseBackend;
 use crate::db::identifier::validate_identifier;
 use crate::error::AppError;
-use crate::server::tools;
 use moka::future::Cache;
-use rmcp::handler::server::router::tool::ToolRouter;
-
-use crate::server::Server;
 use serde_json::{Value, json};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgRow, PgSslMode};
 use sqlx::{PgPool, Row};
@@ -87,27 +83,6 @@ impl std::fmt::Debug for PostgresBackend {
 }
 
 impl PostgresBackend {
-    /// Builds the tool router for `PostgreSQL`.
-    ///
-    /// Always registers read tools. When not in read-only mode,
-    /// also registers `write_query` and `create_database`.
-    #[must_use]
-    pub fn build_tool_router(read_only: bool) -> ToolRouter<Server> {
-        let mut router = ToolRouter::new();
-        router.add_route(tools::list_databases_route());
-        router.add_route(tools::list_tables_route());
-        router.add_route(tools::get_table_schema_route());
-        router.add_route(tools::get_table_schema_with_relations_route());
-        router.add_route(tools::read_query_route());
-
-        if !read_only {
-            router.add_route(tools::write_query_route());
-            router.add_route(tools::create_database_route());
-        }
-
-        router
-    }
-
     /// Creates a new `PostgreSQL` backend from configuration.
     ///
     /// Stores a clone of the configuration for constructing connection options
@@ -481,37 +456,5 @@ mod tests {
         let opts = PgConnectOptions::from(&config);
 
         assert_eq!(opts.get_host(), "pg.example.com");
-    }
-
-    #[test]
-    fn build_tool_router_read_only_returns_5_read_tools() {
-        let router = PostgresBackend::build_tool_router(true);
-        let tools = router.list_all();
-        let names: Vec<&str> = tools.iter().map(|t| t.name.as_ref()).collect();
-
-        assert_eq!(tools.len(), 5);
-        assert!(names.contains(&"list_databases"));
-        assert!(names.contains(&"list_tables"));
-        assert!(names.contains(&"get_table_schema"));
-        assert!(names.contains(&"get_table_schema_with_relations"));
-        assert!(names.contains(&"read_query"));
-        assert!(!names.contains(&"write_query"));
-        assert!(!names.contains(&"create_database"));
-    }
-
-    #[test]
-    fn build_tool_router_read_write_returns_all_7_tools() {
-        let router = PostgresBackend::build_tool_router(false);
-        let tools = router.list_all();
-        let names: Vec<&str> = tools.iter().map(|t| t.name.as_ref()).collect();
-
-        assert_eq!(tools.len(), 7);
-        assert!(names.contains(&"list_databases"));
-        assert!(names.contains(&"list_tables"));
-        assert!(names.contains(&"get_table_schema"));
-        assert!(names.contains(&"get_table_schema_with_relations"));
-        assert!(names.contains(&"read_query"));
-        assert!(names.contains(&"write_query"));
-        assert!(names.contains(&"create_database"));
     }
 }
