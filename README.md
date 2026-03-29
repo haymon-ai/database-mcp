@@ -1,5 +1,7 @@
 # Database MCP
 
+[![SafeSkill 89/100](https://img.shields.io/badge/SafeSkill-89%2F100_Passes%20with%20Notes-yellow)](https://safeskill.dev/scan/haymon-ai-database-mcp)
+
 [![CI](https://github.com/haymon-ai/database-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/haymon-ai/database-mcp/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/haymon-ai/database-mcp)](https://github.com/haymon-ai/database-mcp/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
