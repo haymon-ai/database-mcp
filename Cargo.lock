@@ -190,9 +190,9 @@ dependencies = [
 name = "backend"
 version = "0.3.1"
 dependencies = [
- "mcp-core",
  "serde_json",
  "sqlparser",
+ "thiserror",
 ]
 
 [[package]]
@@ -340,6 +340,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "config"
+version = "0.3.1"
+dependencies = [
+ "clap",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "const-oid"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -468,7 +477,7 @@ dependencies = [
  "axum",
  "backend",
  "clap",
- "mcp-core",
+ "config",
  "mimalloc",
  "mysql",
  "postgres",
@@ -1168,15 +1177,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 
 [[package]]
-name = "mcp-core"
-version = "0.3.1"
-dependencies = [
- "clap",
- "serde",
- "thiserror",
-]
-
-[[package]]
 name = "md-5"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1243,7 +1243,7 @@ name = "mysql"
 version = "0.3.1"
 dependencies = [
  "backend",
- "mcp-core",
+ "config",
  "serde_json",
  "sqlparser",
  "sqlx",
@@ -1433,7 +1433,7 @@ name = "postgres"
 version = "0.3.1"
 dependencies = [
  "backend",
- "mcp-core",
+ "config",
  "moka",
  "serde_json",
  "sqlparser",
@@ -1871,7 +1871,6 @@ name = "server"
 version = "0.3.1"
 dependencies = [
  "backend",
- "mcp-core",
  "rmcp",
  "serde",
  "serde_json",
@@ -1984,7 +1983,7 @@ name = "sqlite"
 version = "0.3.1"
 dependencies = [
  "backend",
- "mcp-core",
+ "config",
  "serde_json",
  "sqlparser",
  "sqlx",

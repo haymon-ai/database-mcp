@@ -4,9 +4,9 @@
 //! using sqlx's `MySqlPool`.
 
 use backend::DatabaseBackend;
+use backend::error::AppError;
 use backend::identifier::validate_identifier;
-use mcp_core::config::DatabaseConfig;
-use mcp_core::error::AppError;
+use config::DatabaseConfig;
 use serde_json::{Value, json};
 use sqlx::mysql::{MySqlConnectOptions, MySqlPoolOptions, MySqlRow, MySqlSslMode};
 use sqlx::{Executor, MySqlPool, Row};
@@ -357,7 +357,7 @@ impl DatabaseBackend for MysqlBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcp_core::config::DatabaseBackend;
+    use config::DatabaseBackend;
 
     fn base_config() -> DatabaseConfig {
         DatabaseConfig {

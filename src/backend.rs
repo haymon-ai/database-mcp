@@ -4,7 +4,7 @@
 //! manually dispatches [`backend::DatabaseBackend`] trait methods.
 
 use backend::DatabaseBackend;
-use mcp_core::error::AppError;
+use backend::error::AppError;
 use serde_json::Value;
 use sqlparser::dialect::Dialect;
 

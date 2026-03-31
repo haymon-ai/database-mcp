@@ -5,9 +5,9 @@
 //! pools keyed by database name.
 
 use backend::DatabaseBackend;
+use backend::error::AppError;
 use backend::identifier::validate_identifier;
-use mcp_core::config::DatabaseConfig;
-use mcp_core::error::AppError;
+use config::DatabaseConfig;
 use moka::future::Cache;
 use serde_json::{Value, json};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgRow, PgSslMode};
@@ -357,7 +357,7 @@ impl DatabaseBackend for PostgresBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcp_core::config::DatabaseBackend;
+    use config::DatabaseBackend;
 
     fn base_config() -> DatabaseConfig {
         DatabaseConfig {

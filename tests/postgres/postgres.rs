@@ -6,8 +6,8 @@
 
 use backend::DatabaseBackend as _;
 use backend::validation::validate_read_only_with_dialect;
+use config::{DatabaseBackend, DatabaseConfig};
 use database_mcp::backend::Backend;
-use mcp_core::config::{DatabaseBackend, DatabaseConfig};
 use postgres::PostgresBackend;
 
 fn test_config() -> DatabaseConfig {

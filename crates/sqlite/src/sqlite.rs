@@ -3,9 +3,9 @@
 //! Implements [`DatabaseBackend`] for `SQLite` file-based databases.
 
 use backend::DatabaseBackend;
+use backend::error::AppError;
 use backend::identifier::validate_identifier;
-use mcp_core::config::DatabaseConfig;
-use mcp_core::error::AppError;
+use config::DatabaseConfig;
 use serde_json::{Value, json};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions, SqliteRow};
 use sqlx::{Row, SqlitePool};
@@ -194,7 +194,7 @@ impl DatabaseBackend for SqliteBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcp_core::config::DatabaseBackend;
+    use config::DatabaseBackend;
 
     #[test]
     fn quote_identifier_wraps_in_double_quotes() {

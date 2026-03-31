@@ -9,8 +9,8 @@
 
 use backend::DatabaseBackend as _;
 use backend::validation::validate_read_only_with_dialect;
+use config::{DatabaseBackend, DatabaseConfig};
 use database_mcp::backend::Backend;
-use mcp_core::config::{DatabaseBackend, DatabaseConfig};
 use rmcp::ServerHandler;
 use server::Server;
 use sqlite::SqliteBackend;

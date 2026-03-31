@@ -3,7 +3,7 @@
 //! Defines the [`DatabaseBackend`] trait that all database backends
 //! must implement for query execution and schema introspection.
 
-use mcp_core::error::AppError;
+use crate::error::AppError;
 use serde_json::Value;
 use sqlparser::dialect::Dialect;
 

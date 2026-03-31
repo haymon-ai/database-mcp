@@ -2,7 +2,7 @@
 //!
 //! Defines [`AppError`] with variants for connection, security validation,
 //! and query execution failures. Configuration errors live in the
-//! [`config`](crate::config) module.
+//! `config` crate.
 
 /// Errors that can occur during MCP server operation.
 #[derive(Debug, thiserror::Error)]

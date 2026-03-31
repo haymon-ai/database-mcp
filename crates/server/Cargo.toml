@@ -7,7 +7,6 @@ repository.workspace = true
 
 [dependencies]
 backend = { workspace = true }
-mcp_core = { workspace = true }
 rmcp = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -11,7 +11,7 @@
 //! - `version` — prints the version and exits
 
 use crate::backend::Backend;
-use mcp_core::config::{Config, DatabaseBackend, DatabaseConfig, HttpConfig};
+use config::{Config, DatabaseBackend, DatabaseConfig, HttpConfig};
 use rmcp::ServiceExt;
 use rmcp::transport::streamable_http_server::{
     StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
