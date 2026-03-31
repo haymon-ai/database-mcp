@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 mcp_core = { path = "../core", package = "mcp-core" }
 backend = { workspace = true }
-sqlx-to-json = { workspace = true }
+sqlx_to_json = { workspace = true }
 sqlx = { workspace = true, features = ["postgres"] }
 serde_json = { workspace = true }
 tracing = { workspace = true }

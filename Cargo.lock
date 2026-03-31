@@ -1247,7 +1247,7 @@ dependencies = [
  "serde_json",
  "sqlparser",
  "sqlx",
- "sqlx-to-json",
+ "sqlx_to_json",
  "tracing",
 ]
 
@@ -1438,7 +1438,7 @@ dependencies = [
  "serde_json",
  "sqlparser",
  "sqlx",
- "sqlx-to-json",
+ "sqlx_to_json",
  "tokio",
  "tracing",
 ]
@@ -1988,7 +1988,7 @@ dependencies = [
  "serde_json",
  "sqlparser",
  "sqlx",
- "sqlx-to-json",
+ "sqlx_to_json",
  "tokio",
  "tracing",
 ]
@@ -2206,7 +2206,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sqlx-to-json"
+name = "sqlx_to_json"
 version = "0.1.0"
 dependencies = [
  "base64",

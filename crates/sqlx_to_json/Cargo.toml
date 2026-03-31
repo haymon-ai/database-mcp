@@ -1,5 +1,5 @@
 [package]
-name = "sqlx-to-json"
+name = "sqlx_to_json"
 version = "0.1.0"
 edition = "2024"
 description = "Database-agnostic row-to-JSON conversion for sqlx"

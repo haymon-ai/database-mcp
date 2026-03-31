@@ -7,7 +7,7 @@ members = [
     "crates/postgres",
     "crates/sqlite",
     "crates/server",
-    "crates/sqlx-to-json",
+    "crates/sqlx_to_json",
 ]
 
 [workspace.dependencies]
@@ -29,7 +29,7 @@ mysql = { path = "crates/mysql", package = "mysql" }
 postgres = { path = "crates/postgres", package = "postgres" }
 sqlite = { path = "crates/sqlite", package = "sqlite" }
 server = { path = "crates/server", package = "server" }
-sqlx-to-json = { path = "crates/sqlx-to-json", package = "sqlx-to-json" }
+sqlx_to_json = { path = "crates/sqlx_to_json" }
 
 [workspace.lints.rust]
 ambiguous_negative_literals = "warn"
