@@ -1,17 +1,28 @@
 //! MySQL/MariaDB backend implementation via sqlx.
 //!
-//! Implements [`DatabaseBackend`] for `MySQL` and `MariaDB` databases
-//! using sqlx's `MySqlPool`.
+//! Implements [`McpBackend`] for `MySQL` and `MariaDB` databases
+//! using sqlx's `MySqlPool`. Each backend instance registers its
+//! own MCP tools onto the server during startup.
 
-use backend::DatabaseBackend;
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use backend::error::AppError;
 use backend::identifier::validate_identifier;
+use backend::types::{CreateDatabaseRequest, GetTableSchemaRequest, ListTablesRequest, QueryRequest};
 use config::DatabaseConfig;
-use serde_json::{Value, json};
+use rmcp::handler::server::common::{FromContextPart, schema_for_empty_input, schema_for_type};
+use rmcp::handler::server::router::tool::{ToolRoute, ToolRouter};
+use rmcp::handler::server::tool::ToolCallContext;
+use rmcp::handler::server::wrapper::Parameters;
+use rmcp::model::{CallToolResult, Content, Tool, ToolAnnotations};
+use rmcp::schemars::JsonSchema;
+use serde_json::{Map as JsonObject, Value, json};
+use server::server::map_error;
+use server::{McpBackend, Server};
 use sqlx::mysql::{MySqlConnectOptions, MySqlPoolOptions, MySqlRow, MySqlSslMode};
 use sqlx::{Executor, MySqlPool, Row};
 use sqlx_to_json::RowExt;
-use std::collections::HashMap;
 use tracing::{error, info};
 
 /// Builds [`MySqlConnectOptions`] from a [`DatabaseConfig`].
@@ -181,8 +192,18 @@ impl MysqlBackend {
     }
 }
 
-impl DatabaseBackend for MysqlBackend {
-    async fn list_databases(&self) -> Result<Vec<String>, AppError> {
+/// Returns the JSON Schema for `Parameters<T>`.
+fn schema_for<T: JsonSchema + 'static>() -> Arc<JsonObject<String, serde_json::Value>> {
+    schema_for_type::<Parameters<T>>()
+}
+
+impl MysqlBackend {
+    /// Lists all accessible databases.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError`] if the query fails.
+    pub async fn list_databases(&self) -> Result<Vec<String>, AppError> {
         let results = self
             .query_to_json(
                 "SELECT SCHEMA_NAME AS name FROM information_schema.SCHEMATA ORDER BY SCHEMA_NAME",
@@ -196,7 +217,12 @@ impl DatabaseBackend for MysqlBackend {
             .collect())
     }
 
-    async fn list_tables(&self, database: &str) -> Result<Vec<String>, AppError> {
+    /// Lists all tables in a database.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError`] if the identifier is invalid or the query fails.
+    pub async fn list_tables(&self, database: &str) -> Result<Vec<String>, AppError> {
         validate_identifier(database)?;
         let sql = format!(
             "SELECT TABLE_NAME AS name FROM information_schema.TABLES WHERE TABLE_SCHEMA = {} ORDER BY TABLE_NAME",
@@ -210,7 +236,12 @@ impl DatabaseBackend for MysqlBackend {
             .collect())
     }
 
-    async fn get_table_schema(&self, database: &str, table: &str) -> Result<Value, AppError> {
+    /// Returns column definitions with foreign key relationships.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError`] if validation fails or the query errors.
+    pub async fn get_table_schema(&self, database: &str, table: &str) -> Result<Value, AppError> {
         validate_identifier(database)?;
         validate_identifier(table)?;
 
@@ -300,11 +331,21 @@ impl DatabaseBackend for MysqlBackend {
         }))
     }
 
-    async fn execute_query(&self, sql: &str, database: Option<&str>) -> Result<Value, AppError> {
+    /// Executes a SQL query and returns rows as JSON.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError`] if the query fails.
+    pub async fn execute_query(&self, sql: &str, database: Option<&str>) -> Result<Value, AppError> {
         self.query_to_json(sql, database).await
     }
 
-    async fn create_database(&self, name: &str) -> Result<Value, AppError> {
+    /// Creates a database if it doesn't exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AppError`] if read-only or the query fails.
+    pub async fn create_database(&self, name: &str) -> Result<Value, AppError> {
         if self.read_only {
             return Err(AppError::ReadOnlyViolation);
         }
@@ -340,17 +381,213 @@ impl DatabaseBackend for MysqlBackend {
             "database_name": name,
         }))
     }
+}
 
-    fn dialect(&self) -> Box<dyn sqlparser::dialect::Dialect> {
-        Box::new(sqlparser::dialect::MySqlDialect {})
-    }
+impl McpBackend for MysqlBackend {
+    #[allow(clippy::too_many_lines)]
+    fn register_tools(&self, router: &mut ToolRouter<Server>) {
+        // list_databases — always (MySQL supports multi-db)
+        let b = self.clone();
+        router.add_route(ToolRoute::new_dyn(
+            Tool::new(
+                "list_databases",
+                "List all accessible databases on the connected database server. Call this first to discover available database names.",
+                schema_for_empty_input(),
+            )
+            .with_annotations(ToolAnnotations::new().read_only(true).destructive(false).idempotent(true).open_world(false)),
+            move |_ctx: ToolCallContext<'_, Server>| {
+                let b = b.clone();
+                Box::pin(async move {
+                    info!("TOOL: list_databases called");
+                    let db_list = b.list_databases().await.map_err(map_error)?;
+                    info!("TOOL: list_databases completed. Databases found: {}", db_list.len());
+                    let json = serde_json::to_string_pretty(&db_list).unwrap_or_else(|_| "[]".into());
+                    Ok(CallToolResult::success(vec![Content::text(json)]))
+                })
+            },
+        ));
 
-    fn read_only(&self) -> bool {
-        self.read_only
-    }
+        // list_tables
+        let b = self.clone();
+        router.add_route(ToolRoute::new_dyn(
+            Tool::new(
+                "list_tables",
+                "List all tables in a specific database. Requires database_name from list_databases.",
+                schema_for::<ListTablesRequest>(),
+            )
+            .with_annotations(
+                ToolAnnotations::new()
+                    .read_only(true)
+                    .destructive(false)
+                    .idempotent(true)
+                    .open_world(false),
+            ),
+            move |mut ctx: ToolCallContext<'_, Server>| {
+                let params = Parameters::<ListTablesRequest>::from_context_part(&mut ctx);
+                let b = b.clone();
+                Box::pin(async move {
+                    let params = params?;
+                    let database_name = &params.0.database_name;
+                    info!("TOOL: list_tables called. database_name={database_name}");
+                    let table_list = match b.list_tables(database_name).await {
+                        Ok(t) => t,
+                        Err(e) => {
+                            error!("TOOL ERROR: list_tables failed for database_name={database_name}: {e}");
+                            return Err(map_error(e));
+                        }
+                    };
+                    info!("TOOL: list_tables completed. Tables found: {}", table_list.len());
+                    let json = serde_json::to_string_pretty(&table_list).unwrap_or_else(|_| "[]".into());
+                    Ok(CallToolResult::success(vec![Content::text(json)]))
+                })
+            },
+        ));
 
-    fn supports_multi_database(&self) -> bool {
-        true
+        // get_table_schema
+        let b = self.clone();
+        router.add_route(ToolRoute::new_dyn(
+            Tool::new(
+                "get_table_schema",
+                "Get column definitions (type, nullable, key, default) and foreign key relationships for a table. Requires database_name and table_name.",
+                schema_for::<GetTableSchemaRequest>(),
+            )
+            .with_annotations(ToolAnnotations::new().read_only(true).destructive(false).idempotent(true).open_world(false)),
+            move |mut ctx: ToolCallContext<'_, Server>| {
+                let params = Parameters::<GetTableSchemaRequest>::from_context_part(&mut ctx);
+                let b = b.clone();
+                Box::pin(async move {
+                    let params = params?;
+                    let database_name = &params.0.database_name;
+                    let table_name = &params.0.table_name;
+                    info!("TOOL: get_table_schema called. database_name={database_name}, table_name={table_name}");
+                    let schema = b.get_table_schema(database_name, table_name).await.map_err(map_error)?;
+                    info!("TOOL: get_table_schema completed");
+                    let json = serde_json::to_string_pretty(&schema).unwrap_or_else(|_| "{}".into());
+                    Ok(CallToolResult::success(vec![Content::text(json)]))
+                })
+            },
+        ));
+
+        // read_query
+        let b = self.clone();
+        router.add_route(ToolRoute::new_dyn(
+            Tool::new(
+                "read_query",
+                "Execute a read-only SQL query (SELECT, SHOW, DESCRIBE, USE, EXPLAIN).",
+                schema_for::<QueryRequest>(),
+            )
+            .with_annotations(
+                ToolAnnotations::new()
+                    .read_only(true)
+                    .destructive(false)
+                    .idempotent(true)
+                    .open_world(true),
+            ),
+            move |mut ctx: ToolCallContext<'_, Server>| {
+                let params = Parameters::<QueryRequest>::from_context_part(&mut ctx);
+                let b = b.clone();
+                Box::pin(async move {
+                    let params = params?;
+                    let sql_query = &params.0.sql_query;
+                    let database_name = &params.0.database_name;
+                    info!(
+                        "TOOL: execute_sql called. database_name={database_name}, sql_query={}",
+                        &sql_query[..sql_query.len().min(100)]
+                    );
+
+                    // Validate read-only with MySQL dialect
+                    {
+                        let dialect = sqlparser::dialect::MySqlDialect {};
+                        backend::validation::validate_read_only_with_dialect(sql_query, &dialect).map_err(map_error)?;
+                    }
+
+                    let db = if database_name.is_empty() {
+                        None
+                    } else {
+                        Some(database_name.as_str())
+                    };
+                    let results = b.execute_query(sql_query, db).await.map_err(map_error)?;
+                    let row_count = results.as_array().map_or(0, Vec::len);
+                    info!("TOOL: execute_sql completed. Rows returned: {row_count}");
+                    let json = serde_json::to_string_pretty(&results).unwrap_or_else(|_| "[]".into());
+                    Ok(CallToolResult::success(vec![Content::text(json)]))
+                })
+            },
+        ));
+
+        // Write tools — only if not read-only
+        if !self.read_only {
+            // write_query
+            let b = self.clone();
+            router.add_route(ToolRoute::new_dyn(
+                Tool::new(
+                    "write_query",
+                    "Execute a write SQL query (INSERT, UPDATE, DELETE, CREATE, ALTER, DROP).",
+                    schema_for::<QueryRequest>(),
+                )
+                .with_annotations(
+                    ToolAnnotations::new()
+                        .read_only(false)
+                        .destructive(true)
+                        .idempotent(false)
+                        .open_world(true),
+                ),
+                move |mut ctx: ToolCallContext<'_, Server>| {
+                    let params = Parameters::<QueryRequest>::from_context_part(&mut ctx);
+                    let b = b.clone();
+                    Box::pin(async move {
+                        let params = params?;
+                        let sql_query = &params.0.sql_query;
+                        let database_name = &params.0.database_name;
+                        info!(
+                            "TOOL: execute_sql called. database_name={database_name}, sql_query={}",
+                            &sql_query[..sql_query.len().min(100)]
+                        );
+
+                        let db = if database_name.is_empty() {
+                            None
+                        } else {
+                            Some(database_name.as_str())
+                        };
+                        let results = b.execute_query(sql_query, db).await.map_err(map_error)?;
+                        let row_count = results.as_array().map_or(0, Vec::len);
+                        info!("TOOL: execute_sql completed. Rows returned: {row_count}");
+                        let json = serde_json::to_string_pretty(&results).unwrap_or_else(|_| "[]".into());
+                        Ok(CallToolResult::success(vec![Content::text(json)]))
+                    })
+                },
+            ));
+
+            // create_database
+            let b = self.clone();
+            router.add_route(ToolRoute::new_dyn(
+                Tool::new(
+                    "create_database",
+                    "Create a new database. Not supported for SQLite.",
+                    schema_for::<CreateDatabaseRequest>(),
+                )
+                .with_annotations(
+                    ToolAnnotations::new()
+                        .read_only(false)
+                        .destructive(false)
+                        .idempotent(false)
+                        .open_world(false),
+                ),
+                move |mut ctx: ToolCallContext<'_, Server>| {
+                    let params = Parameters::<CreateDatabaseRequest>::from_context_part(&mut ctx);
+                    let b = b.clone();
+                    Box::pin(async move {
+                        let params = params?;
+                        let database_name = &params.0.database_name;
+                        info!("TOOL: create_database called for database: '{database_name}'");
+                        let result = b.create_database(database_name).await.map_err(map_error)?;
+                        info!("TOOL: create_database completed");
+                        let json = serde_json::to_string_pretty(&result).unwrap_or_else(|_| "{}".into());
+                        Ok(CallToolResult::success(vec![Content::text(json)]))
+                    })
+                },
+            ));
+        }
     }
 }
 

@@ -10,7 +10,6 @@
 //! - `http` — runs the MCP server over HTTP with Streamable HTTP transport
 //! - `version` — prints the version and exits
 
-use crate::backend::Backend;
 use config::{Config, DatabaseBackend, DatabaseConfig, HttpConfig};
 use rmcp::ServiceExt;
 use rmcp::transport::streamable_http_server::{
@@ -246,6 +245,26 @@ impl From<&Cli> for Config {
     }
 }
 
+/// Creates a [`Server`] with backend tools registered based on configuration.
+async fn create_server(config: &Config) -> Result<Server, Box<dyn std::error::Error>> {
+    let mut server = Server::new();
+    match config.database.backend {
+        DatabaseBackend::Sqlite => {
+            let backend = sqlite::SqliteBackend::new(&config.database).await?;
+            server.register(&backend);
+        }
+        DatabaseBackend::Postgres => {
+            let backend = postgres::PostgresBackend::new(&config.database).await?;
+            server.register(&backend);
+        }
+        DatabaseBackend::Mysql | DatabaseBackend::Mariadb => {
+            let backend = mysql::MysqlBackend::new(&config.database).await?;
+            server.register(&backend);
+        }
+    }
+    Ok(server)
+}
+
 /// Parses CLI arguments, initializes the application, and runs the MCP server.
 ///
 /// # Errors
@@ -288,21 +307,14 @@ pub async fn run() -> Result<ExitCode, Box<dyn std::error::Error>> {
         info!("Server running in READ-ONLY mode. Write operations are disabled.");
     }
 
-    let backend: Backend = match config.database.backend {
-        DatabaseBackend::Sqlite => Backend::Sqlite(sqlite::SqliteBackend::new(&config.database).await?),
-        DatabaseBackend::Postgres => Backend::Postgres(postgres::PostgresBackend::new(&config.database).await?),
-        DatabaseBackend::Mysql | DatabaseBackend::Mariadb => {
-            Backend::Mysql(mysql::MysqlBackend::new(&config.database).await?)
-        }
-    };
-
     match cli.command {
         None | Some(Command::Stdio) => {
-            run_stdio(Server::new(backend)).await?;
+            let server = create_server(&config).await?;
+            run_stdio(server).await?;
         }
         Some(Command::Http { .. }) => {
-            let server = config.server.as_ref().expect("server config is set for HTTP command");
-            run_http(backend, server).await?;
+            let http_config = config.server.as_ref().expect("server config is set for HTTP command");
+            run_http(&config, http_config).await?;
         }
         Some(Command::Version) => unreachable!("handled before backend initialization"),
     }
@@ -310,7 +322,7 @@ pub async fn run() -> Result<ExitCode, Box<dyn std::error::Error>> {
     Ok(ExitCode::SUCCESS)
 }
 
-async fn run_stdio(server: Server<Backend>) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_stdio(server: Server) -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting MCP server via stdio transport...");
 
     let transport = rmcp::transport::io::stdio();
@@ -320,15 +332,15 @@ async fn run_stdio(server: Server<Backend>) -> Result<(), Box<dyn std::error::Er
     Ok(())
 }
 
-async fn run_http(backend: Backend, config: &HttpConfig) -> Result<(), Box<dyn std::error::Error>> {
-    let bind_addr = format!("{}:{}", config.host, config.port);
+async fn run_http(config: &Config, http_config: &HttpConfig) -> Result<(), Box<dyn std::error::Error>> {
+    let bind_addr = format!("{}:{}", http_config.host, http_config.port);
     info!("Starting MCP server via HTTP transport on {bind_addr}...");
 
     let ct = CancellationToken::new();
 
     let cors = tower_http::cors::CorsLayer::new()
         .allow_origin(
-            config
+            http_config
                 .allowed_origins
                 .iter()
                 .filter_map(|o| o.parse().ok())
@@ -341,8 +353,18 @@ async fn run_http(backend: Backend, config: &HttpConfig) -> Result<(), Box<dyn s
         ])
         .allow_headers([axum::http::header::CONTENT_TYPE, axum::http::header::ACCEPT]);
 
+    let config = config.clone();
     let service = StreamableHttpService::new(
-        move || Ok(Server::new(backend.clone())),
+        move || {
+            // Each HTTP session gets its own server with backend tools registered.
+            // We block on the async backend creation using a runtime handle.
+            let config = config.clone();
+            let handle = tokio::runtime::Handle::current();
+            let server = handle
+                .block_on(async { create_server(&config).await })
+                .map_err(|e| std::io::Error::other(e.to_string()))?;
+            Ok(server)
+        },
         Arc::new(LocalSessionManager::default()),
         StreamableHttpServerConfig::default()
             .with_stateful_mode(false)

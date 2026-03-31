@@ -6,6 +6,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+rmcp = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 sqlparser = { workspace = true }
 thiserror = { workspace = true }

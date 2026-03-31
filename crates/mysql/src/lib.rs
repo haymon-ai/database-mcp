@@ -1,6 +1,6 @@
 //! MySQL/MariaDB backend crate.
 //!
-//! Provides [`MysqlBackend`] implementing the [`backend::DatabaseBackend`] trait.
+//! Provides [`MysqlBackend`] implementing the [`server::McpBackend`] trait.
 
 pub mod mysql;
 

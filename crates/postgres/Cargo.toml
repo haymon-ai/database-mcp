@@ -9,7 +9,9 @@ repository.workspace = true
 backend = { workspace = true }
 config = { workspace = true }
 moka = { workspace = true }
+rmcp = { workspace = true }
 serde_json = { workspace = true }
+server = { workspace = true }
 sqlparser = { workspace = true }
 sqlx = { workspace = true, features = ["postgres"] }
 sqlx_to_json = { workspace = true }

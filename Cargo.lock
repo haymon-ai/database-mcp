@@ -190,6 +190,8 @@ dependencies = [
 name = "backend"
 version = "0.3.1"
 dependencies = [
+ "rmcp",
+ "serde",
  "serde_json",
  "sqlparser",
  "thiserror",
@@ -482,7 +484,6 @@ dependencies = [
  "mysql",
  "postgres",
  "rmcp",
- "serde_json",
  "server",
  "sqlite",
  "sqlparser",
@@ -1244,7 +1245,9 @@ version = "0.3.1"
 dependencies = [
  "backend",
  "config",
+ "rmcp",
  "serde_json",
+ "server",
  "sqlparser",
  "sqlx",
  "sqlx_to_json",
@@ -1435,7 +1438,9 @@ dependencies = [
  "backend",
  "config",
  "moka",
+ "rmcp",
  "serde_json",
+ "server",
  "sqlparser",
  "sqlx",
  "sqlx_to_json",
@@ -1870,7 +1875,6 @@ dependencies = [
 name = "server"
 version = "0.3.1"
 dependencies = [
- "backend",
  "rmcp",
  "serde",
  "serde_json",
@@ -1984,7 +1988,9 @@ version = "0.3.1"
 dependencies = [
  "backend",
  "config",
+ "rmcp",
  "serde_json",
+ "server",
  "sqlparser",
  "sqlx",
  "sqlx_to_json",

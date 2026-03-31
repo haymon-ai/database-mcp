@@ -1,44 +1,57 @@
 //! MCP server struct and constructor.
 //!
-//! Defines [`Server`] which holds the database backend and tool router.
+//! Defines [`Server`] which holds the tool router populated by backends.
 
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::model::{ErrorData, Tool};
 
-use crate::tools::build_tool_router;
+use crate::traits::McpBackend;
 
 /// Converts a displayable error into an MCP [`ErrorData`].
-pub(crate) fn map_error(e: impl std::fmt::Display) -> ErrorData {
+pub fn map_error(e: impl std::fmt::Display) -> ErrorData {
     ErrorData::internal_error(e.to_string(), None)
 }
 
-/// MCP server backed by a database backend.
+/// Backend-agnostic MCP server that hosts registered tools.
 #[derive(Clone)]
-pub struct Server<B: backend::DatabaseBackend> {
-    /// The active database backend.
-    pub backend: B,
+pub struct Server {
     pub(crate) tool_router: ToolRouter<Self>,
 }
 
-impl<B: backend::DatabaseBackend> std::fmt::Debug for Server<B> {
+impl std::fmt::Debug for Server {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Server").finish_non_exhaustive()
     }
 }
 
-impl<B: backend::DatabaseBackend + 'static> Server<B> {
-    /// Creates a new MCP server with the given database backend.
+impl Server {
+    /// Creates a new MCP server with an empty tool router.
     ///
-    /// The tool router is built based on the backend's capabilities
-    /// and read-only setting.
+    /// Call [`register`](Self::register) to populate tools before starting transport.
     #[must_use]
-    pub fn new(backend: B) -> Self {
-        let tool_router = build_tool_router(&backend);
-        Self { backend, tool_router }
+    pub fn new() -> Self {
+        Self {
+            tool_router: ToolRouter::new(),
+        }
+    }
+
+    /// Registers a backend's tools onto this server.
+    ///
+    /// The backend populates the tool router with its tool definitions
+    /// and handler closures.
+    pub fn register(&mut self, backend: &impl McpBackend) {
+        backend.register_tools(&mut self.tool_router);
     }
 
     /// Looks up a tool by name in the router.
+    #[must_use]
     pub fn get_tool(&self, name: &str) -> Option<Tool> {
         self.tool_router.get(name).cloned()
+    }
+}
+
+impl Default for Server {
+    fn default() -> Self {
+        Self::new()
     }
 }

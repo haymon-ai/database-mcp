@@ -91,7 +91,6 @@ mimalloc = { workspace = true }
 mysql = { workspace = true }
 postgres = { workspace = true }
 rmcp = { workspace = true }
-serde_json = { workspace = true }
 server = { workspace = true }
 sqlite = { workspace = true }
 sqlparser = { workspace = true }

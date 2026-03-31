@@ -4,10 +4,8 @@
 //! ./tests/run.sh --filter postgres
 //! ```
 
-use backend::DatabaseBackend as _;
 use backend::validation::validate_read_only_with_dialect;
 use config::{DatabaseBackend, DatabaseConfig};
-use database_mcp::backend::Backend;
 use postgres::PostgresBackend;
 
 fn test_config() -> DatabaseConfig {
@@ -26,25 +24,21 @@ fn test_config() -> DatabaseConfig {
     }
 }
 
-async fn backend() -> Backend {
+async fn backend() -> PostgresBackend {
     let config = test_config();
-    Backend::Postgres(
-        PostgresBackend::new(&config)
-            .await
-            .expect("PostgreSQL connection failed"),
-    )
+    PostgresBackend::new(&config)
+        .await
+        .expect("PostgreSQL connection failed")
 }
 
-async fn readonly_backend() -> Backend {
+async fn readonly_backend() -> PostgresBackend {
     let config = DatabaseConfig {
         read_only: true,
         ..test_config()
     };
-    Backend::Postgres(
-        PostgresBackend::new(&config)
-            .await
-            .expect("PostgreSQL connection failed"),
-    )
+    PostgresBackend::new(&config)
+        .await
+        .expect("PostgreSQL connection failed")
 }
 
 #[tokio::test]
@@ -109,11 +103,11 @@ async fn it_executes_sql() {
 
 #[tokio::test]
 async fn it_blocks_writes_in_read_only_mode() {
-    let b = readonly_backend().await;
-    let dialect = b.dialect();
+    let _b = readonly_backend().await;
+    let dialect = sqlparser::dialect::PostgreSqlDialect {};
     let result = validate_read_only_with_dialect(
         "INSERT INTO users (name, email) VALUES ('Hacker', 'hack@evil.com')",
-        dialect.as_ref(),
+        &dialect,
     );
     assert!(result.is_err(), "Expected error for write in read-only mode");
 }
@@ -212,9 +206,9 @@ async fn it_lists_databases_includes_cross_db() {
 
 #[tokio::test]
 async fn it_blocks_writes_cross_database_in_read_only_mode() {
-    let b = readonly_backend().await;
-    let dialect = b.dialect();
-    let result = validate_read_only_with_dialect("INSERT INTO events (name) VALUES ('hack')", dialect.as_ref());
+    let _b = readonly_backend().await;
+    let dialect = sqlparser::dialect::PostgreSqlDialect {};
+    let result = validate_read_only_with_dialect("INSERT INTO events (name) VALUES ('hack')", &dialect);
     assert!(
         result.is_err(),
         "Expected error for write in read-only mode on cross-database"
@@ -243,7 +237,7 @@ async fn it_uses_default_pool_for_matching_database() {
 async fn it_has_consistent_seed_data() {
     let b = backend().await;
 
-    async fn check(b: &Backend, table: &str, expected: usize) {
+    async fn check(b: &PostgresBackend, table: &str, expected: usize) {
         let sql = format!("SELECT CAST(COUNT(*) AS CHAR) as cnt FROM {table}");
         let results = b
             .execute_query(&sql, Some("app"))

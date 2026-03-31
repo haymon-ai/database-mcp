@@ -1,6 +1,6 @@
 //! `PostgreSQL` backend crate.
 //!
-//! Provides [`PostgresBackend`] implementing the [`backend::DatabaseBackend`] trait.
+//! Provides [`PostgresBackend`] implementing the [`server::McpBackend`] trait.
 
 pub mod postgres;
 
