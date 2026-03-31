@@ -6,9 +6,9 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-thiserror = { workspace = true }
 clap = { workspace = true }
 serde = { workspace = true }
+thiserror = { workspace = true }
 
 [lints]
 workspace = true

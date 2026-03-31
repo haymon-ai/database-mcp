@@ -1,6 +1,6 @@
 //! Shared identifier validation for all database backends.
 
-use core::error::AppError;
+use mcp_core::error::AppError;
 
 /// Validates that `name` is a non-empty identifier without control characters.
 ///

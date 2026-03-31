@@ -30,6 +30,16 @@ jobs:
           components: rustfmt
       - run: cargo fmt --all --check
 
+  taplo:
+    name: Taplo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: uncenter/setup-taplo@v1
+        with:
+          version: "0.10.0"
+      - run: taplo fmt --check --diff
+
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
