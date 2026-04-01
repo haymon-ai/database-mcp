@@ -15,7 +15,14 @@
       "runtimeHint": "docker",
       "transport": {
         "type": "stdio"
-      }
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "stdio",
+          "description": "Start in stdio transport mode (default)"
+        }
+      ]
     },
     {
       "registryType": "oci",
@@ -23,7 +30,7 @@
       "runtimeHint": "docker",
       "transport": {
         "type": "streamable-http",
-        "url": "http://{HTTP_HOST}:{HTTP_PORT}/mcp"
+        "url": "http://{--host}:{--port}/mcp"
       },
       "packageArguments": [
         {
@@ -31,6 +38,30 @@
           "value": "http",
           "description": "Start in HTTP transport mode",
           "isRequired": true
+        },
+        {
+          "type": "named",
+          "name": "--host",
+          "description": "HTTP bind host",
+          "default": "127.0.0.1"
+        },
+        {
+          "type": "named",
+          "name": "--port",
+          "description": "HTTP bind port",
+          "default": "9001"
+        },
+        {
+          "type": "named",
+          "name": "--allowed-origins",
+          "description": "Allowed CORS origins (comma-separated)",
+          "isRepeated": true
+        },
+        {
+          "type": "named",
+          "name": "--allowed-hosts",
+          "description": "Allowed host names (comma-separated)",
+          "isRepeated": true
         }
       ],
       "environmentVariables": [
@@ -54,6 +85,88 @@
           "description": "Allowed host names (comma-separated)"
         }
       ]
+    }
+  ],
+  "packageArguments": [
+    {
+      "type": "named",
+      "name": "--db-backend",
+      "description": "Database backend",
+      "default": "mysql"
+    },
+    {
+      "type": "named",
+      "name": "--db-host",
+      "description": "Database host",
+      "default": "localhost"
+    },
+    {
+      "type": "named",
+      "name": "--db-port",
+      "description": "Database port (default: backend-dependent)"
+    },
+    {
+      "type": "named",
+      "name": "--db-user",
+      "description": "Database user (default: backend-dependent)"
+    },
+    {
+      "type": "named",
+      "name": "--db-password",
+      "description": "Database password"
+    },
+    {
+      "type": "named",
+      "name": "--db-name",
+      "description": "Database name or SQLite file path"
+    },
+    {
+      "type": "named",
+      "name": "--db-charset",
+      "description": "Character set (MySQL/MariaDB only)"
+    },
+    {
+      "type": "named",
+      "name": "--db-ssl",
+      "description": "Enable SSL for database connection"
+    },
+    {
+      "type": "named",
+      "name": "--db-ssl-ca",
+      "description": "Path to CA certificate"
+    },
+    {
+      "type": "named",
+      "name": "--db-ssl-cert",
+      "description": "Path to client certificate"
+    },
+    {
+      "type": "named",
+      "name": "--db-ssl-key",
+      "description": "Path to client key"
+    },
+    {
+      "type": "named",
+      "name": "--db-ssl-verify-cert",
+      "description": "Verify server certificate"
+    },
+    {
+      "type": "named",
+      "name": "--db-read-only",
+      "description": "Enable read-only mode",
+      "default": "true"
+    },
+    {
+      "type": "named",
+      "name": "--db-max-pool-size",
+      "description": "Maximum connection pool size",
+      "default": "10"
+    },
+    {
+      "type": "named",
+      "name": "--log-level",
+      "description": "Log level: error, warn, info, debug, trace",
+      "default": "info"
     }
   ],
   "environmentVariables": [
