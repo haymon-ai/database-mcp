@@ -4,7 +4,7 @@
 
 use std::borrow::Cow;
 
-use database_mcp_server::tools;
+use database_mcp_server::map_error;
 use database_mcp_server::types::{CreateDatabaseRequest, GetTableSchemaRequest, ListTablesRequest, QueryRequest};
 use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};
@@ -14,7 +14,7 @@ use database_mcp_server::Server;
 use super::MysqlAdapter;
 
 /// Type alias kept module-private for brevity in tool impls.
-type MysqlHandler = Server<MysqlAdapter>;
+type MysqlService = Server<MysqlAdapter>;
 
 /// Tool to list all accessible databases.
 pub(super) struct ListDatabasesTool;
@@ -56,9 +56,10 @@ impl ToolBase for ListDatabasesTool {
     }
 }
 
-impl AsyncTool<MysqlHandler> for ListDatabasesTool {
-    async fn invoke(handler: &MysqlHandler, _req: ()) -> Result<String, ErrorData> {
-        tools::list_databases(handler.backend.list_databases()).await
+impl AsyncTool<MysqlService> for ListDatabasesTool {
+    async fn invoke(service: &MysqlService, _req: ()) -> Result<String, ErrorData> {
+        let result = service.backend.list_databases().await.map_err(map_error)?;
+        serde_json::to_string_pretty(&result).map_err(map_error)
     }
 }
 
@@ -99,9 +100,14 @@ impl ToolBase for ListTablesTool {
     }
 }
 
-impl AsyncTool<MysqlHandler> for ListTablesTool {
-    async fn invoke(handler: &MysqlHandler, req: ListTablesRequest) -> Result<String, ErrorData> {
-        tools::list_tables(handler.backend.list_tables(&req.database_name), &req.database_name).await
+impl AsyncTool<MysqlService> for ListTablesTool {
+    async fn invoke(service: &MysqlService, req: ListTablesRequest) -> Result<String, ErrorData> {
+        let result = service
+            .backend
+            .list_tables(&req.database_name)
+            .await
+            .map_err(map_error)?;
+        serde_json::to_string_pretty(&result).map_err(map_error)
     }
 }
 
@@ -141,14 +147,14 @@ impl ToolBase for GetTableSchemaTool {
     }
 }
 
-impl AsyncTool<MysqlHandler> for GetTableSchemaTool {
-    async fn invoke(handler: &MysqlHandler, req: GetTableSchemaRequest) -> Result<String, ErrorData> {
-        tools::get_table_schema(
-            handler.backend.get_table_schema(&req.database_name, &req.table_name),
-            &req.database_name,
-            &req.table_name,
-        )
-        .await
+impl AsyncTool<MysqlService> for GetTableSchemaTool {
+    async fn invoke(service: &MysqlService, req: GetTableSchemaRequest) -> Result<String, ErrorData> {
+        let result = service
+            .backend
+            .get_table_schema(&req.database_name, &req.table_name)
+            .await
+            .map_err(map_error)?;
+        serde_json::to_string_pretty(&result).map_err(map_error)
     }
 }
 
@@ -188,18 +194,25 @@ impl ToolBase for ReadQueryTool {
     }
 }
 
-impl AsyncTool<MysqlHandler> for ReadQueryTool {
-    async fn invoke(handler: &MysqlHandler, req: QueryRequest) -> Result<String, ErrorData> {
-        let db = tools::resolve_database(&req.database_name);
-        tools::read_query(
-            handler.backend.execute_query(&req.sql_query, db),
+impl AsyncTool<MysqlService> for ReadQueryTool {
+    async fn invoke(service: &MysqlService, req: QueryRequest) -> Result<String, ErrorData> {
+        database_mcp_sql::validation::validate_read_only_with_dialect(
             &req.sql_query,
-            &req.database_name,
-            |sql| {
-                database_mcp_sql::validation::validate_read_only_with_dialect(sql, &sqlparser::dialect::MySqlDialect {})
-            },
+            &sqlparser::dialect::MySqlDialect {},
         )
-        .await
+        .map_err(map_error)?;
+
+        let db = if req.database_name.is_empty() {
+            None
+        } else {
+            Some(req.database_name.as_str())
+        };
+        let result = service
+            .backend
+            .execute_query(&req.sql_query, db)
+            .await
+            .map_err(map_error)?;
+        serde_json::to_string_pretty(&result).map_err(map_error)
     }
 }
 
@@ -239,15 +252,19 @@ impl ToolBase for WriteQueryTool {
     }
 }
 
-impl AsyncTool<MysqlHandler> for WriteQueryTool {
-    async fn invoke(handler: &MysqlHandler, req: QueryRequest) -> Result<String, ErrorData> {
-        let db = tools::resolve_database(&req.database_name);
-        tools::write_query(
-            handler.backend.execute_query(&req.sql_query, db),
-            &req.sql_query,
-            &req.database_name,
-        )
-        .await
+impl AsyncTool<MysqlService> for WriteQueryTool {
+    async fn invoke(service: &MysqlService, req: QueryRequest) -> Result<String, ErrorData> {
+        let db = if req.database_name.is_empty() {
+            None
+        } else {
+            Some(req.database_name.as_str())
+        };
+        let result = service
+            .backend
+            .execute_query(&req.sql_query, db)
+            .await
+            .map_err(map_error)?;
+        serde_json::to_string_pretty(&result).map_err(map_error)
     }
 }
 
@@ -287,8 +304,13 @@ impl ToolBase for CreateDatabaseTool {
     }
 }
 
-impl AsyncTool<MysqlHandler> for CreateDatabaseTool {
-    async fn invoke(handler: &MysqlHandler, req: CreateDatabaseRequest) -> Result<String, ErrorData> {
-        tools::create_database(handler.backend.create_database(&req.database_name), &req.database_name).await
+impl AsyncTool<MysqlService> for CreateDatabaseTool {
+    async fn invoke(service: &MysqlService, req: CreateDatabaseRequest) -> Result<String, ErrorData> {
+        let result = service
+            .backend
+            .create_database(&req.database_name)
+            .await
+            .map_err(map_error)?;
+        serde_json::to_string_pretty(&result).map_err(map_error)
     }
 }

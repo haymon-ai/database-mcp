@@ -8,6 +8,7 @@
 use rmcp::ServerHandler;
 use rmcp::handler::server::tool::ToolRouter;
 use rmcp::model::{ErrorData, Implementation, ServerCapabilities, ServerInfo};
+use tracing::info;
 
 /// Contract for backend types that supply MCP tools.
 ///
@@ -54,8 +55,23 @@ impl<T: Backend> ServerHandler for Server<T> {
         request: rmcp::model::CallToolRequestParams,
         context: rmcp::service::RequestContext<rmcp::RoleServer>,
     ) -> Result<rmcp::model::CallToolResult, rmcp::ErrorData> {
+        let tool_name = request.name.clone();
+        info!("TOOL: {tool_name} called. arguments={:?}", request.arguments);
+
         let tcc = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
-        self.tool_router.call(tcc).await
+        let result = self.tool_router.call(tcc).await;
+
+        match &result {
+            Ok(r) => {
+                let byte_len: usize = r.content.iter().map(|c| format!("{c:?}").len()).sum();
+                info!("TOOL: {tool_name} completed. response_bytes={byte_len}");
+            }
+            Err(e) => {
+                info!("TOOL: {tool_name} failed. error={}", e.message);
+            }
+        }
+
+        result
     }
 
     async fn list_tools(

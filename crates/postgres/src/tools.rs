@@ -4,7 +4,7 @@
 
 use std::borrow::Cow;
 
-use database_mcp_server::tools;
+use database_mcp_server::map_error;
 use database_mcp_server::types::{CreateDatabaseRequest, GetTableSchemaRequest, ListTablesRequest, QueryRequest};
 use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};
@@ -14,7 +14,7 @@ use database_mcp_server::Server;
 use super::PostgresAdapter;
 
 /// Type alias kept module-private for brevity in tool impls.
-type PostgresHandler = Server<PostgresAdapter>;
+type PostgresService = Server<PostgresAdapter>;
 
 /// Tool to list all accessible databases.
 pub(super) struct ListDatabasesTool;
@@ -56,9 +56,10 @@ impl ToolBase for ListDatabasesTool {
     }
 }
 
-impl AsyncTool<PostgresHandler> for ListDatabasesTool {
-    async fn invoke(handler: &PostgresHandler, _req: ()) -> Result<String, ErrorData> {
-        tools::list_databases(handler.backend.list_databases()).await
+impl AsyncTool<PostgresService> for ListDatabasesTool {
+    async fn invoke(service: &PostgresService, _req: ()) -> Result<String, ErrorData> {
+        let result = service.backend.list_databases().await.map_err(map_error)?;
+        serde_json::to_string_pretty(&result).map_err(map_error)
     }
 }
 
@@ -99,9 +100,14 @@ impl ToolBase for ListTablesTool {
     }
 }
 
-impl AsyncTool<PostgresHandler> for ListTablesTool {
-    async fn invoke(handler: &PostgresHandler, req: ListTablesRequest) -> Result<String, ErrorData> {
-        tools::list_tables(handler.backend.list_tables(&req.database_name), &req.database_name).await
+impl AsyncTool<PostgresService> for ListTablesTool {
+    async fn invoke(service: &PostgresService, req: ListTablesRequest) -> Result<String, ErrorData> {
+        let result = service
+            .backend
+            .list_tables(&req.database_name)
+            .await
+            .map_err(map_error)?;
+        serde_json::to_string_pretty(&result).map_err(map_error)
     }
 }
 
@@ -141,14 +147,14 @@ impl ToolBase for GetTableSchemaTool {
     }
 }
 
-impl AsyncTool<PostgresHandler> for GetTableSchemaTool {
-    async fn invoke(handler: &PostgresHandler, req: GetTableSchemaRequest) -> Result<String, ErrorData> {
-        tools::get_table_schema(
-            handler.backend.get_table_schema(&req.database_name, &req.table_name),
-            &req.database_name,
-            &req.table_name,
-        )
-        .await
+impl AsyncTool<PostgresService> for GetTableSchemaTool {
+    async fn invoke(service: &PostgresService, req: GetTableSchemaRequest) -> Result<String, ErrorData> {
+        let result = service
+            .backend
+            .get_table_schema(&req.database_name, &req.table_name)
+            .await
+            .map_err(map_error)?;
+        serde_json::to_string_pretty(&result).map_err(map_error)
     }
 }
 
@@ -188,22 +194,25 @@ impl ToolBase for ReadQueryTool {
     }
 }
 
-impl AsyncTool<PostgresHandler> for ReadQueryTool {
-    async fn invoke(handler: &PostgresHandler, req: QueryRequest) -> Result<String, ErrorData> {
-        tools::read_query(
-            handler
-                .backend
-                .execute_query(&req.sql_query, tools::resolve_database(&req.database_name)),
+impl AsyncTool<PostgresService> for ReadQueryTool {
+    async fn invoke(service: &PostgresService, req: QueryRequest) -> Result<String, ErrorData> {
+        database_mcp_sql::validation::validate_read_only_with_dialect(
             &req.sql_query,
-            &req.database_name,
-            |sql| {
-                database_mcp_sql::validation::validate_read_only_with_dialect(
-                    sql,
-                    &sqlparser::dialect::PostgreSqlDialect {},
-                )
-            },
+            &sqlparser::dialect::PostgreSqlDialect {},
         )
-        .await
+        .map_err(map_error)?;
+
+        let db = if req.database_name.is_empty() {
+            None
+        } else {
+            Some(req.database_name.as_str())
+        };
+        let result = service
+            .backend
+            .execute_query(&req.sql_query, db)
+            .await
+            .map_err(map_error)?;
+        serde_json::to_string_pretty(&result).map_err(map_error)
     }
 }
 
@@ -243,16 +252,19 @@ impl ToolBase for WriteQueryTool {
     }
 }
 
-impl AsyncTool<PostgresHandler> for WriteQueryTool {
-    async fn invoke(handler: &PostgresHandler, req: QueryRequest) -> Result<String, ErrorData> {
-        tools::write_query(
-            handler
-                .backend
-                .execute_query(&req.sql_query, tools::resolve_database(&req.database_name)),
-            &req.sql_query,
-            &req.database_name,
-        )
-        .await
+impl AsyncTool<PostgresService> for WriteQueryTool {
+    async fn invoke(service: &PostgresService, req: QueryRequest) -> Result<String, ErrorData> {
+        let db = if req.database_name.is_empty() {
+            None
+        } else {
+            Some(req.database_name.as_str())
+        };
+        let result = service
+            .backend
+            .execute_query(&req.sql_query, db)
+            .await
+            .map_err(map_error)?;
+        serde_json::to_string_pretty(&result).map_err(map_error)
     }
 }
 
@@ -292,8 +304,13 @@ impl ToolBase for CreateDatabaseTool {
     }
 }
 
-impl AsyncTool<PostgresHandler> for CreateDatabaseTool {
-    async fn invoke(handler: &PostgresHandler, req: CreateDatabaseRequest) -> Result<String, ErrorData> {
-        tools::create_database(handler.backend.create_database(&req.database_name), &req.database_name).await
+impl AsyncTool<PostgresService> for CreateDatabaseTool {
+    async fn invoke(service: &PostgresService, req: CreateDatabaseRequest) -> Result<String, ErrorData> {
+        let result = service
+            .backend
+            .create_database(&req.database_name)
+            .await
+            .map_err(map_error)?;
+        serde_json::to_string_pretty(&result).map_err(map_error)
     }
 }

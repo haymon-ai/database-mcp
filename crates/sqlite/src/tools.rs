@@ -4,7 +4,7 @@
 
 use std::borrow::Cow;
 
-use database_mcp_server::tools;
+use database_mcp_server::map_error;
 use database_mcp_server::types::{GetTableSchemaRequest, ListTablesRequest, QueryRequest};
 use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};
@@ -14,7 +14,7 @@ use database_mcp_server::Server;
 use super::SqliteAdapter;
 
 /// Type alias kept module-private for brevity in tool impls.
-type SqliteHandler = Server<SqliteAdapter>;
+type SqliteService = Server<SqliteAdapter>;
 
 /// Tool to list all tables in a database.
 pub(super) struct ListTablesTool;
@@ -53,9 +53,14 @@ impl ToolBase for ListTablesTool {
     }
 }
 
-impl AsyncTool<SqliteHandler> for ListTablesTool {
-    async fn invoke(handler: &SqliteHandler, req: ListTablesRequest) -> Result<String, ErrorData> {
-        tools::list_tables(handler.backend.list_tables(&req.database_name), &req.database_name).await
+impl AsyncTool<SqliteService> for ListTablesTool {
+    async fn invoke(service: &SqliteService, req: ListTablesRequest) -> Result<String, ErrorData> {
+        let result = service
+            .backend
+            .list_tables(&req.database_name)
+            .await
+            .map_err(map_error)?;
+        serde_json::to_string_pretty(&result).map_err(map_error)
     }
 }
 
@@ -95,14 +100,14 @@ impl ToolBase for GetTableSchemaTool {
     }
 }
 
-impl AsyncTool<SqliteHandler> for GetTableSchemaTool {
-    async fn invoke(handler: &SqliteHandler, req: GetTableSchemaRequest) -> Result<String, ErrorData> {
-        tools::get_table_schema(
-            handler.backend.get_table_schema(&req.database_name, &req.table_name),
-            &req.database_name,
-            &req.table_name,
-        )
-        .await
+impl AsyncTool<SqliteService> for GetTableSchemaTool {
+    async fn invoke(service: &SqliteService, req: GetTableSchemaRequest) -> Result<String, ErrorData> {
+        let result = service
+            .backend
+            .get_table_schema(&req.database_name, &req.table_name)
+            .await
+            .map_err(map_error)?;
+        serde_json::to_string_pretty(&result).map_err(map_error)
     }
 }
 
@@ -142,21 +147,25 @@ impl ToolBase for ReadQueryTool {
     }
 }
 
-impl AsyncTool<SqliteHandler> for ReadQueryTool {
-    async fn invoke(handler: &SqliteHandler, req: QueryRequest) -> Result<String, ErrorData> {
-        let db = tools::resolve_database(&req.database_name);
-        tools::read_query(
-            handler.backend.execute_query(&req.sql_query, db),
+impl AsyncTool<SqliteService> for ReadQueryTool {
+    async fn invoke(service: &SqliteService, req: QueryRequest) -> Result<String, ErrorData> {
+        database_mcp_sql::validation::validate_read_only_with_dialect(
             &req.sql_query,
-            &req.database_name,
-            |sql| {
-                database_mcp_sql::validation::validate_read_only_with_dialect(
-                    sql,
-                    &sqlparser::dialect::SQLiteDialect {},
-                )
-            },
+            &sqlparser::dialect::SQLiteDialect {},
         )
-        .await
+        .map_err(map_error)?;
+
+        let db = if req.database_name.is_empty() {
+            None
+        } else {
+            Some(req.database_name.as_str())
+        };
+        let result = service
+            .backend
+            .execute_query(&req.sql_query, db)
+            .await
+            .map_err(map_error)?;
+        serde_json::to_string_pretty(&result).map_err(map_error)
     }
 }
 
@@ -196,15 +205,18 @@ impl ToolBase for WriteQueryTool {
     }
 }
 
-impl AsyncTool<SqliteHandler> for WriteQueryTool {
-    async fn invoke(handler: &SqliteHandler, req: QueryRequest) -> Result<String, ErrorData> {
-        tools::write_query(
-            handler
-                .backend
-                .execute_query(&req.sql_query, tools::resolve_database(&req.database_name)),
-            &req.sql_query,
-            &req.database_name,
-        )
-        .await
+impl AsyncTool<SqliteService> for WriteQueryTool {
+    async fn invoke(service: &SqliteService, req: QueryRequest) -> Result<String, ErrorData> {
+        let db = if req.database_name.is_empty() {
+            None
+        } else {
+            Some(req.database_name.as_str())
+        };
+        let result = service
+            .backend
+            .execute_query(&req.sql_query, db)
+            .await
+            .map_err(map_error)?;
+        serde_json::to_string_pretty(&result).map_err(map_error)
     }
 }
