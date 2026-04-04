@@ -12,5 +12,6 @@ use super::SqliteAdapter;
 impl rmcp::ServerHandler for SqliteAdapter {
     fn get_info(&self) -> ServerInfo {
         server_info()
+            .with_instructions("Database MCP Server - provides database exploration and query tools for SQLite")
     }
 }
