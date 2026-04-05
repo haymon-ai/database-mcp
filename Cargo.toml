@@ -105,7 +105,13 @@ database-mcp-sql = { workspace = true }
 database-mcp-sqlite = { workspace = true }
 insta = { workspace = true }
 reqwest = { workspace = true }
-rmcp = { version = "1.3", features = ["client", "macros", "server", "transport-io", "transport-streamable-http-server"] }
+rmcp = { version = "1.3", features = [
+    "client",
+    "macros",
+    "server",
+    "transport-io",
+    "transport-streamable-http-server",
+] }
 serde_json = { workspace = true }
 sqlparser = { workspace = true }
 tokio = { workspace = true }
