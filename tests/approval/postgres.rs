@@ -1,4 +1,4 @@
-//! PostgreSQL approval tests.
+//! `PostgreSQL` approval tests.
 //!
 //! Captures MCP tool schemas and server info as golden files using `insta`.
 

@@ -1,4 +1,4 @@
-//! MySQL approval tests.
+//! `MySQL` approval tests.
 //!
 //! Captures MCP tool schemas and server info as golden files using `insta`.
 

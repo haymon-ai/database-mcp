@@ -1,4 +1,4 @@
-//! Functional integration tests for MySQL/MariaDB.
+//! Functional tests for `MySQL`/`MariaDB`.
 //!
 //! ```bash
 //! ./tests/run.sh --filter mariadb    # MariaDB
@@ -209,8 +209,6 @@ async fn it_uses_default_pool_for_matching_database() {
 
 #[tokio::test]
 async fn it_has_consistent_seed_data() {
-    let b = backend().await;
-
     async fn check(b: &MysqlAdapter, table: &str, expected: usize) {
         let sql = format!("SELECT CAST(COUNT(*) AS CHAR) as cnt FROM {table}");
         let results = b
@@ -232,6 +230,7 @@ async fn it_has_consistent_seed_data() {
         assert_eq!(count, expected, "{table}: expected {expected}, got {count}");
     }
 
+    let b = backend().await;
     check(&b, "users", 3).await;
     check(&b, "posts", 5).await;
     check(&b, "tags", 4).await;

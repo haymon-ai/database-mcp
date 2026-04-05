@@ -1,10 +1,11 @@
-//! Shared helpers for integration tests.
+//! Shared helpers for functional tests.
 //!
 //! Provides adapter creation functions used across all backend test files.
 
 use database_mcp_config::{DatabaseBackend, DatabaseConfig};
 
 /// Creates a [`DatabaseConfig`] for `SQLite` tests.
+#[allow(dead_code)]
 pub fn sqlite_config(db_path: &str, read_only: bool) -> DatabaseConfig {
     DatabaseConfig {
         backend: DatabaseBackend::Sqlite,
@@ -17,6 +18,7 @@ pub fn sqlite_config(db_path: &str, read_only: bool) -> DatabaseConfig {
 }
 
 /// Creates a [`DatabaseConfig`] for `MySQL`/`MariaDB` tests.
+#[allow(dead_code)]
 pub fn mysql_config(read_only: bool) -> DatabaseConfig {
     DatabaseConfig {
         backend: DatabaseBackend::Mysql,
@@ -34,6 +36,7 @@ pub fn mysql_config(read_only: bool) -> DatabaseConfig {
 }
 
 /// Creates a [`DatabaseConfig`] for `PostgreSQL` tests.
+#[allow(dead_code)]
 pub fn postgres_config(read_only: bool) -> DatabaseConfig {
     DatabaseConfig {
         backend: DatabaseBackend::Postgres,

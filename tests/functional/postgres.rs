@@ -1,4 +1,4 @@
-//! Functional integration tests for PostgreSQL.
+//! Functional tests for `PostgreSQL`.
 //!
 //! ```bash
 //! ./tests/run.sh --filter postgres
@@ -217,8 +217,6 @@ async fn it_uses_default_pool_for_matching_database() {
 
 #[tokio::test]
 async fn it_has_consistent_seed_data() {
-    let b = backend().await;
-
     async fn check(b: &PostgresAdapter, table: &str, expected: usize) {
         let sql = format!("SELECT CAST(COUNT(*) AS CHAR) as cnt FROM {table}");
         let results = b
@@ -240,6 +238,7 @@ async fn it_has_consistent_seed_data() {
         assert_eq!(count, expected, "{table}: expected {expected}, got {count}");
     }
 
+    let b = backend().await;
     check(&b, "users", 3).await;
     check(&b, "posts", 5).await;
     check(&b, "tags", 4).await;

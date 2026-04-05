@@ -1,4 +1,4 @@
-//! SQLite approval tests.
+//! `SQLite` approval tests.
 //!
 //! Captures MCP tool schemas and server info as golden files using `insta`.
 
