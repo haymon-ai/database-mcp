@@ -4,25 +4,34 @@
 //! ./tests/run.sh --filter postgres
 //! ```
 
-mod common;
-
-use database_mcp_config::DatabaseConfig;
+use database_mcp_config::{DatabaseBackend, DatabaseConfig};
 use database_mcp_postgres::PostgresAdapter;
 use database_mcp_sql::validation::validate_read_only_with_dialect;
 
+fn config(read_only: bool) -> DatabaseConfig {
+    DatabaseConfig {
+        backend: DatabaseBackend::Postgres,
+        host: std::env::var("DB_HOST").unwrap_or_else(|_| "127.0.0.1".into()),
+        port: std::env::var("DB_PORT")
+            .ok()
+            .and_then(|p| p.parse().ok())
+            .unwrap_or(5432),
+        user: std::env::var("DB_USER").unwrap_or_else(|_| "postgres".into()),
+        password: std::env::var("DB_PASSWORD").ok(),
+        name: Some("app".into()),
+        read_only,
+        ..DatabaseConfig::default()
+    }
+}
+
 async fn backend() -> PostgresAdapter {
-    let config = common::postgres_config(false);
-    PostgresAdapter::new(&config)
+    PostgresAdapter::new(&config(false))
         .await
         .expect("PostgreSQL connection failed")
 }
 
 async fn readonly_backend() -> PostgresAdapter {
-    let config = DatabaseConfig {
-        read_only: true,
-        ..common::postgres_config(false)
-    };
-    PostgresAdapter::new(&config)
+    PostgresAdapter::new(&config(true))
         .await
         .expect("PostgreSQL connection failed")
 }

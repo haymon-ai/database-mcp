@@ -5,23 +5,34 @@
 //! ./tests/run.sh --filter mysql      # MySQL
 //! ```
 
-mod common;
-
-use database_mcp_config::DatabaseConfig;
+use database_mcp_config::{DatabaseBackend, DatabaseConfig};
 use database_mcp_mysql::MysqlAdapter;
 use database_mcp_sql::validation::validate_read_only_with_dialect;
 
+fn config(read_only: bool) -> DatabaseConfig {
+    DatabaseConfig {
+        backend: DatabaseBackend::Mysql,
+        host: std::env::var("DB_HOST").unwrap_or_else(|_| "127.0.0.1".into()),
+        port: std::env::var("DB_PORT")
+            .ok()
+            .and_then(|p| p.parse().ok())
+            .unwrap_or(3306),
+        user: std::env::var("DB_USER").unwrap_or_else(|_| "root".into()),
+        password: std::env::var("DB_PASSWORD").ok(),
+        name: Some("app".into()),
+        read_only,
+        ..DatabaseConfig::default()
+    }
+}
+
 async fn backend() -> MysqlAdapter {
-    let config = common::mysql_config(false);
-    MysqlAdapter::new(&config).await.expect("MySQL connection failed")
+    MysqlAdapter::new(&config(false))
+        .await
+        .expect("MySQL connection failed")
 }
 
 async fn readonly_backend() -> MysqlAdapter {
-    let config = DatabaseConfig {
-        read_only: true,
-        ..common::mysql_config(false)
-    };
-    MysqlAdapter::new(&config).await.expect("MySQL connection failed")
+    MysqlAdapter::new(&config(true)).await.expect("MySQL connection failed")
 }
 
 #[tokio::test]

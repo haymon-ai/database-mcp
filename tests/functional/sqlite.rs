@@ -7,21 +7,26 @@
 //! ./tests/run.sh --filter sqlite
 //! ```
 
-mod common;
-
+use database_mcp_config::{DatabaseBackend, DatabaseConfig};
 use database_mcp_sql::validation::validate_read_only_with_dialect;
 use database_mcp_sqlite::SqliteAdapter;
 
-async fn backend() -> SqliteAdapter {
+fn config(read_only: bool) -> DatabaseConfig {
     let db_path = std::env::var("DB_PATH").expect("DB_PATH must be set");
-    let config = common::sqlite_config(&db_path, false);
-    SqliteAdapter::new(&config).await.expect("SQLite open failed")
+    DatabaseConfig {
+        backend: DatabaseBackend::Sqlite,
+        name: Some(db_path),
+        read_only,
+        ..DatabaseConfig::default()
+    }
+}
+
+async fn backend() -> SqliteAdapter {
+    SqliteAdapter::new(&config(false)).await.expect("SQLite open failed")
 }
 
 async fn readonly_backend() -> SqliteAdapter {
-    let db_path = std::env::var("DB_PATH").expect("DB_PATH must be set");
-    let config = common::sqlite_config(&db_path, true);
-    SqliteAdapter::new(&config).await.expect("SQLite open failed")
+    SqliteAdapter::new(&config(true)).await.expect("SQLite open failed")
 }
 
 #[tokio::test]
@@ -150,9 +155,7 @@ async fn it_has_consistent_seed_data() {
 
 #[tokio::test]
 async fn it_excludes_list_databases_and_create_database_tools() {
-    let db_path = std::env::var("DB_PATH").expect("DB_PATH must be set");
-    let config = common::sqlite_config(&db_path, false);
-    let backend = database_mcp_sqlite::SqliteAdapter::new(&config)
+    let backend = SqliteAdapter::new(&config(false))
         .await
         .expect("backend creation failed");
     let router = backend.build_tool_router();
