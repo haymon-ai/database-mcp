@@ -64,40 +64,6 @@ impl SqliteAdapter {
         Ok(Json(self.get_table_schema(&request).await?))
     }
 
-    /// Execute a read-only SQL query (SELECT, SHOW, DESCRIBE, USE, EXPLAIN).
-    #[tool(
-        name = "read_query",
-        annotations(
-            read_only_hint = true,
-            destructive_hint = false,
-            idempotent_hint = true,
-            open_world_hint = true
-        )
-    )]
-    pub async fn tool_read_query(
-        &self,
-        Parameters(request): Parameters<QueryRequest>,
-    ) -> Result<Json<QueryResponse>, ErrorData> {
-        Ok(Json(self.read_query(&request).await?))
-    }
-
-    /// Return the execution plan for a SQL query.
-    #[tool(
-        name = "explain_query",
-        annotations(
-            read_only_hint = true,
-            destructive_hint = false,
-            idempotent_hint = true,
-            open_world_hint = true
-        )
-    )]
-    pub async fn tool_explain_query(
-        &self,
-        Parameters(request): Parameters<ExplainQueryRequest>,
-    ) -> Result<Json<QueryResponse>, ErrorData> {
-        Ok(Json(self.explain_query(&request).await?))
-    }
-
     /// Drop a table from the database.
     #[tool(
         name = "drop_table",
@@ -115,6 +81,23 @@ impl SqliteAdapter {
         Ok(Json(self.drop_table(&request).await?))
     }
 
+    /// Execute a read-only SQL query (SELECT, SHOW, DESCRIBE, USE, EXPLAIN).
+    #[tool(
+        name = "read_query",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    pub async fn tool_read_query(
+        &self,
+        Parameters(request): Parameters<QueryRequest>,
+    ) -> Result<Json<QueryResponse>, ErrorData> {
+        Ok(Json(self.read_query(&request).await?))
+    }
+
     /// Execute a write SQL query (INSERT, UPDATE, DELETE, CREATE, ALTER, DROP).
     #[tool(
         name = "write_query",
@@ -130,5 +113,22 @@ impl SqliteAdapter {
         Parameters(request): Parameters<QueryRequest>,
     ) -> Result<Json<QueryResponse>, ErrorData> {
         Ok(Json(self.write_query(&request).await?))
+    }
+
+    /// Return the execution plan for a SQL query.
+    #[tool(
+        name = "explain_query",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    pub async fn tool_explain_query(
+        &self,
+        Parameters(request): Parameters<ExplainQueryRequest>,
+    ) -> Result<Json<QueryResponse>, ErrorData> {
+        Ok(Json(self.explain_query(&request).await?))
     }
 }

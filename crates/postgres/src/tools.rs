@@ -50,6 +50,40 @@ impl PostgresAdapter {
         Ok(Json(self.list_databases().await?))
     }
 
+    /// Create a new database.
+    #[tool(
+        name = "create_database",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    pub async fn tool_create_database(
+        &self,
+        Parameters(request): Parameters<CreateDatabaseRequest>,
+    ) -> Result<Json<MessageResponse>, ErrorData> {
+        Ok(Json(self.create_database(&request).await?))
+    }
+
+    /// Drop an existing database. Cannot drop the currently connected database.
+    #[tool(
+        name = "drop_database",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    pub async fn tool_drop_database(
+        &self,
+        Parameters(request): Parameters<DropDatabaseRequest>,
+    ) -> Result<Json<MessageResponse>, ErrorData> {
+        Ok(Json(self.drop_database(&request).await?))
+    }
+
     /// List all tables in a specific database.
     /// Requires `database_name` from `list_databases`.
     #[tool(
@@ -86,6 +120,24 @@ impl PostgresAdapter {
         Ok(Json(self.get_table_schema(&request).await?))
     }
 
+    /// Drop a table from a database. Checks for foreign key dependencies
+    /// via the database engine — use `cascade` to force on `PostgreSQL`.
+    #[tool(
+        name = "drop_table",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    pub async fn tool_drop_table(
+        &self,
+        Parameters(request): Parameters<DropTableRequest>,
+    ) -> Result<Json<MessageResponse>, ErrorData> {
+        Ok(Json(self.drop_table(&request).await?))
+    }
+
     /// Execute a read-only SQL query (SELECT, SHOW, DESCRIBE, USE, EXPLAIN).
     #[tool(
         name = "read_query",
@@ -120,23 +172,6 @@ impl PostgresAdapter {
         Ok(Json(self.write_query(&request).await?))
     }
 
-    /// Create a new database.
-    #[tool(
-        name = "create_database",
-        annotations(
-            read_only_hint = false,
-            destructive_hint = false,
-            idempotent_hint = false,
-            open_world_hint = false
-        )
-    )]
-    pub async fn tool_create_database(
-        &self,
-        Parameters(request): Parameters<CreateDatabaseRequest>,
-    ) -> Result<Json<MessageResponse>, ErrorData> {
-        Ok(Json(self.create_database(&request).await?))
-    }
-
     /// Return the execution plan for a SQL query.
     #[tool(
         name = "explain_query",
@@ -152,40 +187,5 @@ impl PostgresAdapter {
         Parameters(request): Parameters<ExplainQueryRequest>,
     ) -> Result<Json<QueryResponse>, ErrorData> {
         Ok(Json(self.explain_query(&request).await?))
-    }
-
-    /// Drop a table from a database. Checks for foreign key dependencies
-    /// via the database engine — use `cascade` to force on `PostgreSQL`.
-    #[tool(
-        name = "drop_table",
-        annotations(
-            read_only_hint = false,
-            destructive_hint = true,
-            idempotent_hint = false,
-            open_world_hint = false
-        )
-    )]
-    pub async fn tool_drop_table(
-        &self,
-        Parameters(request): Parameters<DropTableRequest>,
-    ) -> Result<Json<MessageResponse>, ErrorData> {
-        Ok(Json(self.drop_table(&request).await?))
-    }
-
-    /// Drop an existing database. Cannot drop the currently connected database.
-    #[tool(
-        name = "drop_database",
-        annotations(
-            read_only_hint = false,
-            destructive_hint = true,
-            idempotent_hint = false,
-            open_world_hint = false
-        )
-    )]
-    pub async fn tool_drop_database(
-        &self,
-        Parameters(request): Parameters<DropDatabaseRequest>,
-    ) -> Result<Json<MessageResponse>, ErrorData> {
-        Ok(Json(self.drop_database(&request).await?))
     }
 }

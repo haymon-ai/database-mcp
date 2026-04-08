@@ -21,6 +21,20 @@ pub struct ListDatabasesResponse {
     pub databases: Vec<String>,
 }
 
+/// Request for the `create_database` tool.
+#[derive(Debug, Default, Deserialize, JsonSchema)]
+pub struct CreateDatabaseRequest {
+    /// Name of the database to create. Must contain only alphanumeric characters and underscores.
+    pub database_name: String,
+}
+
+/// Request for the `drop_database` tool.
+#[derive(Debug, Default, Deserialize, JsonSchema)]
+pub struct DropDatabaseRequest {
+    /// Name of the database to drop. Must contain only alphanumeric characters and underscores.
+    pub database_name: String,
+}
+
 /// Request for the `list_tables` tool.
 #[derive(Debug, Default, Deserialize, JsonSchema)]
 pub struct ListTablesRequest {
@@ -67,20 +81,6 @@ pub struct QueryRequest {
 pub struct QueryResponse {
     /// Result rows, each a JSON object keyed by a column name.
     pub rows: Value,
-}
-
-/// Request for the `create_database` tool.
-#[derive(Debug, Default, Deserialize, JsonSchema)]
-pub struct CreateDatabaseRequest {
-    /// Name of the database to create. Must contain only alphanumeric characters and underscores.
-    pub database_name: String,
-}
-
-/// Request for the `drop_database` tool.
-#[derive(Debug, Default, Deserialize, JsonSchema)]
-pub struct DropDatabaseRequest {
-    /// Name of the database to drop. Must contain only alphanumeric characters and underscores.
-    pub database_name: String,
 }
 
 /// Request for the `explain_query` tool.

@@ -15,18 +15,18 @@ pub struct GetTableSchemaRequest {
     pub table_name: String,
 }
 
-/// Request for the `read_query` and `write_query` tools.
-#[derive(Debug, Default, Deserialize, JsonSchema)]
-pub struct QueryRequest {
-    /// The SQL query to execute.
-    pub query: String,
-}
-
 /// Request for the `drop_table` tool.
 #[derive(Debug, Default, Deserialize, JsonSchema)]
 pub struct DropTableRequest {
     /// Name of the table to drop. Must contain only alphanumeric characters and underscores.
     pub table_name: String,
+}
+
+/// Request for the `read_query` and `write_query` tools.
+#[derive(Debug, Default, Deserialize, JsonSchema)]
+pub struct QueryRequest {
+    /// The SQL query to execute.
+    pub query: String,
 }
 
 /// Request for the `explain_query` tool.
