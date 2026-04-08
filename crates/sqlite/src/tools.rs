@@ -11,8 +11,6 @@ use rmcp::handler::server::wrapper::{Json, Parameters};
 use rmcp::model::ErrorData;
 use rmcp::tool;
 
-use database_mcp_sql::validation::validate_read_only_with_dialect;
-
 use super::SqliteAdapter;
 
 impl SqliteAdapter {
@@ -80,8 +78,6 @@ impl SqliteAdapter {
         &self,
         Parameters(request): Parameters<QueryRequest>,
     ) -> Result<Json<QueryResponse>, ErrorData> {
-        validate_read_only_with_dialect(&request.query, &sqlparser::dialect::SQLiteDialect {})?;
-
         Ok(Json(self.read_query(&request).await?))
     }
 

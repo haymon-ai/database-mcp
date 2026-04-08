@@ -5,6 +5,7 @@ use database_mcp_server::AppError;
 use database_mcp_server::types::{ListTablesResponse, MessageResponse, QueryResponse};
 use database_mcp_sql::identifier::validate_identifier;
 use database_mcp_sql::timeout::execute_with_timeout;
+use database_mcp_sql::validation::validate_read_only_with_dialect;
 use serde_json::Value;
 use sqlx::sqlite::SqliteRow;
 use sqlx_to_json::RowExt;
@@ -87,10 +88,14 @@ impl SqliteAdapter {
 
     /// Executes a read-only SQL query.
     ///
+    /// Validates that the query is read-only before executing.
+    ///
     /// # Errors
     ///
-    /// Returns [`AppError`] if the query fails.
+    /// Returns [`AppError::ReadOnlyViolation`] if the query is not
+    /// read-only, or [`AppError::Query`] if the backend reports an error.
     pub(crate) async fn read_query(&self, request: &QueryRequest) -> Result<QueryResponse, AppError> {
+        validate_read_only_with_dialect(&request.query, &sqlparser::dialect::SQLiteDialect {})?;
         let rows = self.execute_query(&request.query).await?;
         Ok(QueryResponse { rows })
     }

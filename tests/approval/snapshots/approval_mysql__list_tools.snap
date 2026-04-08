@@ -159,7 +159,7 @@ expression: tools
     },
     "outputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "description": "Response for the `read_query` tool.",
+      "description": "Response for the `read_query`, `write_query`, and `explain_query` tools.",
       "properties": {
         "rows": {
           "description": "Result rows, each a JSON object keyed by a column name."
@@ -327,7 +327,7 @@ expression: tools
     },
     "outputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "description": "Response for the `read_query` tool.",
+      "description": "Response for the `read_query`, `write_query`, and `explain_query` tools.",
       "properties": {
         "rows": {
           "description": "Result rows, each a JSON object keyed by a column name."
@@ -371,7 +371,7 @@ expression: tools
     },
     "outputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "description": "Response for the `read_query` tool.",
+      "description": "Response for the `read_query`, `write_query`, and `explain_query` tools.",
       "properties": {
         "rows": {
           "description": "Result rows, each a JSON object keyed by a column name."

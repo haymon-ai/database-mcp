@@ -67,10 +67,14 @@ impl PostgresAdapter {
 
     /// Executes a read-only SQL query.
     ///
+    /// Validates that the query is read-only before executing.
+    ///
     /// # Errors
     ///
-    /// Returns [`AppError`] if the query fails.
+    /// Returns [`AppError::ReadOnlyViolation`] if the query is not
+    /// read-only, or [`AppError::Query`] if the backend reports an error.
     pub(crate) async fn read_query(&self, request: &QueryRequest) -> Result<QueryResponse, AppError> {
+        validate_read_only_with_dialect(&request.query, &sqlparser::dialect::PostgreSqlDialect {})?;
         let db = Some(request.database_name.trim()).filter(|s| !s.is_empty());
         let rows = self.execute_query(&request.query, db).await?;
         Ok(QueryResponse { rows })

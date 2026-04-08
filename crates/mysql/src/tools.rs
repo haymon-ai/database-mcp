@@ -14,8 +14,6 @@ use rmcp::handler::server::wrapper::{Json, Parameters};
 use rmcp::model::ErrorData;
 use rmcp::tool;
 
-use database_mcp_sql::validation::validate_read_only_with_dialect;
-
 use super::MysqlAdapter;
 
 impl MysqlAdapter {
@@ -102,8 +100,6 @@ impl MysqlAdapter {
         &self,
         Parameters(request): Parameters<QueryRequest>,
     ) -> Result<Json<QueryResponse>, ErrorData> {
-        validate_read_only_with_dialect(&request.query, &sqlparser::dialect::MySqlDialect {})?;
-
         Ok(Json(self.read_query(&request).await?))
     }
 
