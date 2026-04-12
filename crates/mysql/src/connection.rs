@@ -1,4 +1,4 @@
-//! `MySQL`/`MariaDB` connection: pool cache, pool initialization, and [`Connection`] impl.
+//! `MySQL`/`MariaDB` connection: pool cache, pool initialization, and [`PoolProvider`] impl.
 //!
 //! Owns the lazy default pool and the moka cache of per-database pools.
 //! Hides every backend pool concern from [`MysqlHandler`](crate::MysqlHandler),
@@ -8,14 +8,10 @@ use std::time::Duration;
 
 use database_mcp_config::DatabaseConfig;
 use database_mcp_server::AppError;
-use database_mcp_sql::connection::Connection;
+use database_mcp_sql::PoolProvider;
 use database_mcp_sql::identifier::{quote_identifier, validate_identifier};
-use database_mcp_sql::timeout::execute_with_timeout;
 use moka::future::Cache;
-use serde_json::Value;
-use sqlx::Executor;
 use sqlx::mysql::{MySqlConnectOptions, MySqlPool, MySqlPoolOptions, MySqlSslMode};
-use sqlx_to_json::RowExt;
 use tracing::info;
 
 /// Maximum number of cached per-database connection pools.
@@ -142,38 +138,15 @@ impl MysqlConnection {
     }
 }
 
-impl Connection for MysqlConnection {
-    async fn execute(&self, query: &str, database: Option<&str>) -> Result<u64, AppError> {
-        let pool = self.pool(database).await?;
-        let sql = query.to_owned();
-        execute_with_timeout(self.config.query_timeout, query, async move {
-            let mut conn = pool.acquire().await?;
-            let result = (&mut *conn).execute(sql.as_str()).await?;
-            Ok::<_, sqlx::Error>(result.rows_affected())
-        })
-        .await
+impl PoolProvider for MysqlConnection {
+    type DB = sqlx::MySql;
+
+    async fn pool(&self, target: Option<&str>) -> Result<sqlx::Pool<Self::DB>, AppError> {
+        self.pool(target).await
     }
 
-    async fn fetch(&self, query: &str, database: Option<&str>) -> Result<Vec<Value>, AppError> {
-        let pool = self.pool(database).await?;
-        let sql = query.to_owned();
-        execute_with_timeout(self.config.query_timeout, query, async move {
-            let mut conn = pool.acquire().await?;
-            let rows = (&mut *conn).fetch_all(sql.as_str()).await?;
-            Ok::<_, sqlx::Error>(rows.iter().map(RowExt::to_json).collect())
-        })
-        .await
-    }
-
-    async fn fetch_optional(&self, query: &str, database: Option<&str>) -> Result<Option<Value>, AppError> {
-        let pool = self.pool(database).await?;
-        let sql = query.to_owned();
-        execute_with_timeout(self.config.query_timeout, query, async move {
-            let mut conn = pool.acquire().await?;
-            let row = (&mut *conn).fetch_optional(sql.as_str()).await?;
-            Ok::<_, sqlx::Error>(row.as_ref().map(RowExt::to_json))
-        })
-        .await
+    fn query_timeout(&self) -> Option<u64> {
+        self.config.query_timeout
     }
 }
 

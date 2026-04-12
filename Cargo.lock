@@ -547,6 +547,8 @@ dependencies = [
  "database-mcp-server",
  "serde_json",
  "sqlparser",
+ "sqlx",
+ "sqlx_to_json",
  "tokio",
 ]
 
