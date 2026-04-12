@@ -27,7 +27,7 @@ pub(crate) struct PostgresConnection {
 impl std::fmt::Debug for PostgresConnection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PostgresConnection")
-            .field("default_db", &self.default_db())
+            .field("default_database_name", &self.default_database_name())
             .finish_non_exhaustive()
     }
 }
@@ -59,7 +59,7 @@ impl PostgresConnection {
     }
 
     /// Returns the configured default database name, or the username as fallback.
-    pub(crate) fn default_db(&self) -> &str {
+    pub(crate) fn default_database_name(&self) -> &str {
         self.config
             .name
             .as_deref()
@@ -83,29 +83,22 @@ impl PostgresConnection {
     ///
     /// - [`AppError::InvalidIdentifier`] — `target` failed identifier validation.
     pub(crate) async fn pool(&self, target: Option<&str>) -> Result<PgPool, AppError> {
-        let db_key = match target {
+        let database = match target {
             Some(name) if !name.is_empty() => name,
-            _ => self.default_db(),
+            _ => self.default_database_name(),
         };
 
-        if let Some(pool) = self.pools.get(db_key).await {
+        if let Some(pool) = self.pools.get(database).await {
             return Ok(pool);
         }
 
-        if db_key != self.default_db() {
-            validate_identifier(db_key)?;
+        if database != self.default_database_name() {
+            validate_identifier(database)?;
         }
-
-        let config = self.config.clone();
-        let key = db_key.to_owned();
 
         let pool = self
             .pools
-            .get_with(key, async {
-                let mut cfg = config;
-                cfg.name = Some(db_key.to_owned());
-                create_lazy_pool(&cfg)
-            })
+            .get_with(database.to_owned(), async { create_lazy_pool(&self.config, database) })
             .await;
 
         Ok(pool)
@@ -125,40 +118,38 @@ impl Connection for PostgresConnection {
     }
 }
 
-/// Creates a lazy `PostgreSQL` pool from a [`DatabaseConfig`].
+/// Creates a lazy `PostgreSQL` pool for `db_name`.
 ///
 /// Uses [`PgConnectOptions::new_without_pgpass`] to avoid unintended
 /// `PG*` environment variable influence, since our config already
 /// resolves values from CLI/env.
-fn create_lazy_pool(config: &DatabaseConfig) -> PgPool {
-    let mut opts = PgConnectOptions::new_without_pgpass()
+fn create_lazy_pool(config: &DatabaseConfig, database: &str) -> PgPool {
+    let mut conn_ops = PgConnectOptions::new_without_pgpass()
         .host(&config.host)
         .port(config.port)
         .username(&config.user);
 
     if let Some(ref password) = config.password {
-        opts = opts.password(password);
+        conn_ops = conn_ops.password(password);
     }
-    if let Some(ref name) = config.name
-        && !name.is_empty()
-    {
-        opts = opts.database(name);
+    if !database.is_empty() {
+        conn_ops = conn_ops.database(database);
     }
 
     if config.ssl {
-        opts = if config.ssl_verify_cert {
-            opts.ssl_mode(PgSslMode::VerifyCa)
+        conn_ops = if config.ssl_verify_cert {
+            conn_ops.ssl_mode(PgSslMode::VerifyCa)
         } else {
-            opts.ssl_mode(PgSslMode::Require)
+            conn_ops.ssl_mode(PgSslMode::Require)
         };
         if let Some(ref ca) = config.ssl_ca {
-            opts = opts.ssl_root_cert(ca);
+            conn_ops = conn_ops.ssl_root_cert(ca);
         }
         if let Some(ref cert) = config.ssl_cert {
-            opts = opts.ssl_client_cert(cert);
+            conn_ops = conn_ops.ssl_client_cert(cert);
         }
         if let Some(ref key) = config.ssl_key {
-            opts = opts.ssl_client_key(key);
+            conn_ops = conn_ops.ssl_client_key(key);
         }
     }
 
@@ -172,7 +163,7 @@ fn create_lazy_pool(config: &DatabaseConfig) -> PgPool {
         pool_opts = pool_opts.acquire_timeout(Duration::from_secs(timeout));
     }
 
-    pool_opts.connect_lazy_with(opts)
+    pool_opts.connect_lazy_with(conn_ops)
 }
 
 #[cfg(test)]
@@ -194,32 +185,38 @@ mod tests {
 
     #[tokio::test]
     async fn create_lazy_pool_returns_idle_pool() {
-        let pool = create_lazy_pool(&base_config());
+        let pool = create_lazy_pool(&base_config(), "mydb");
         assert_eq!(pool.size(), 0, "pool should be lazy (no connections yet)");
     }
 
     #[tokio::test]
     async fn create_lazy_pool_without_password() {
-        let pool = create_lazy_pool(&DatabaseConfig {
-            password: None,
-            ..base_config()
-        });
+        let pool = create_lazy_pool(
+            &DatabaseConfig {
+                password: None,
+                ..base_config()
+            },
+            "mydb",
+        );
         assert_eq!(pool.size(), 0);
     }
 
     #[tokio::test]
     async fn create_lazy_pool_without_database_name() {
-        let pool = create_lazy_pool(&DatabaseConfig {
-            name: None,
-            ..base_config()
-        });
+        let pool = create_lazy_pool(
+            &DatabaseConfig {
+                name: None,
+                ..base_config()
+            },
+            "",
+        );
         assert_eq!(pool.size(), 0);
     }
 
     #[tokio::test]
-    async fn default_db_derived_from_config() {
+    async fn default_database_name_derived_from_config() {
         let connection = PostgresConnection::new(&base_config());
-        assert_eq!(connection.default_db(), "mydb");
+        assert_eq!(connection.default_database_name(), "mydb");
     }
 
     #[tokio::test]
@@ -228,7 +225,7 @@ mod tests {
             name: None,
             ..base_config()
         });
-        assert_eq!(connection.default_db(), "pgadmin");
+        assert_eq!(connection.default_database_name(), "pgadmin");
     }
 
     #[tokio::test]

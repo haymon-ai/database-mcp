@@ -68,7 +68,7 @@ impl MysqlHandler {
         validate_identifier(name)?;
 
         // Guard: prevent dropping the currently connected database.
-        if self.connection.default_db().eq_ignore_ascii_case(name) {
+        if self.connection.default_database_name().eq_ignore_ascii_case(name) {
             return Err(AppError::Query(format!(
                 "Cannot drop the currently connected database '{name}'."
             )));

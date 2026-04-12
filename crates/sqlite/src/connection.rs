@@ -60,7 +60,7 @@ impl Connection for SqliteConnection {
 ///
 /// Forces `max_connections` to 1 — `SQLite` is a single-writer backend.
 fn create_lazy_pool(config: &DatabaseConfig) -> SqlitePool {
-    let opts = SqliteConnectOptions::new().filename(config.name.as_deref().unwrap_or_default());
+    let conn_ops = SqliteConnectOptions::new().filename(config.name.as_deref().unwrap_or_default());
     let mut pool_opts = sqlx::pool::PoolOptions::new()
         .max_connections(1)
         .min_connections(DatabaseConfig::DEFAULT_MIN_CONNECTIONS)
@@ -71,7 +71,7 @@ fn create_lazy_pool(config: &DatabaseConfig) -> SqlitePool {
         pool_opts = pool_opts.acquire_timeout(Duration::from_secs(timeout));
     }
 
-    pool_opts.connect_lazy_with(opts)
+    pool_opts.connect_lazy_with(conn_ops)
 }
 
 #[cfg(test)]

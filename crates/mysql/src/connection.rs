@@ -27,7 +27,7 @@ pub(crate) struct MysqlConnection {
 impl std::fmt::Debug for MysqlConnection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MysqlConnection")
-            .field("default_db", &self.default_db())
+            .field("default_db", &self.default_database_name())
             .finish_non_exhaustive()
     }
 }
@@ -59,7 +59,7 @@ impl MysqlConnection {
     }
 
     /// Returns the configured default database name, or `""` if none.
-    pub(crate) fn default_db(&self) -> &str {
+    pub(crate) fn default_database_name(&self) -> &str {
         self.config.name.as_deref().filter(|n| !n.is_empty()).unwrap_or("")
     }
 
@@ -79,30 +79,23 @@ impl MysqlConnection {
     ///
     /// - [`AppError::InvalidIdentifier`] — `target` failed identifier validation.
     pub(crate) async fn pool(&self, target: Option<&str>) -> Result<MySqlPool, AppError> {
-        let db_key = match target {
+        let database = match target {
             Some(name) if !name.is_empty() => name,
-            _ => self.default_db(),
+            _ => self.default_database_name(),
         };
 
-        if let Some(pool) = self.pools.get(db_key).await {
+        if let Some(pool) = self.pools.get(database).await {
             return Ok(pool);
         }
 
-        let default = self.default_db();
-        if default.is_empty() || !default.eq_ignore_ascii_case(db_key) {
-            validate_identifier(db_key)?;
+        let default = self.default_database_name();
+        if default.is_empty() || !default.eq_ignore_ascii_case(database) {
+            validate_identifier(database)?;
         }
-
-        let config = self.config.clone();
-        let key = db_key.to_owned();
 
         let pool = self
             .pools
-            .get_with(key, async {
-                let mut cfg = config;
-                cfg.name = Some(db_key.to_owned());
-                create_lazy_pool(&cfg)
-            })
+            .get_with(database.to_owned(), async { create_lazy_pool(&self.config, database) })
             .await;
 
         Ok(pool)
@@ -122,43 +115,41 @@ impl Connection for MysqlConnection {
     }
 }
 
-/// Creates a lazy `MySQL` pool from a [`DatabaseConfig`].
+/// Creates a lazy `MySQL` pool for `db_name`.
 ///
 /// Combines pool lifecycle options with backend-specific connect
 /// options into a single lazy pool that establishes connections on
 /// first use.
-fn create_lazy_pool(config: &DatabaseConfig) -> MySqlPool {
-    let mut opts = MySqlConnectOptions::new()
+fn create_lazy_pool(config: &DatabaseConfig, database: &str) -> MySqlPool {
+    let mut conn_ops = MySqlConnectOptions::new()
         .host(&config.host)
         .port(config.port)
         .username(&config.user);
 
     if let Some(ref password) = config.password {
-        opts = opts.password(password);
+        conn_ops = conn_ops.password(password);
     }
-    if let Some(ref name) = config.name
-        && !name.is_empty()
-    {
-        opts = opts.database(name);
+    if !database.is_empty() {
+        conn_ops = conn_ops.database(database);
     }
     if let Some(ref charset) = config.charset {
-        opts = opts.charset(charset);
+        conn_ops = conn_ops.charset(charset);
     }
 
     if config.ssl {
-        opts = if config.ssl_verify_cert {
-            opts.ssl_mode(MySqlSslMode::VerifyCa)
+        conn_ops = if config.ssl_verify_cert {
+            conn_ops.ssl_mode(MySqlSslMode::VerifyCa)
         } else {
-            opts.ssl_mode(MySqlSslMode::Required)
+            conn_ops.ssl_mode(MySqlSslMode::Required)
         };
         if let Some(ref ca) = config.ssl_ca {
-            opts = opts.ssl_ca(ca);
+            conn_ops = conn_ops.ssl_ca(ca);
         }
         if let Some(ref cert) = config.ssl_cert {
-            opts = opts.ssl_client_cert(cert);
+            conn_ops = conn_ops.ssl_client_cert(cert);
         }
         if let Some(ref key) = config.ssl_key {
-            opts = opts.ssl_client_key(key);
+            conn_ops = conn_ops.ssl_client_key(key);
         }
     }
 
@@ -172,7 +163,7 @@ fn create_lazy_pool(config: &DatabaseConfig) -> MySqlPool {
         pool_opts = pool_opts.acquire_timeout(Duration::from_secs(timeout));
     }
 
-    pool_opts.connect_lazy_with(opts)
+    pool_opts.connect_lazy_with(conn_ops)
 }
 
 #[cfg(test)]
@@ -194,32 +185,38 @@ mod tests {
 
     #[tokio::test]
     async fn create_lazy_pool_returns_idle_pool() {
-        let pool = create_lazy_pool(&base_config());
+        let pool = create_lazy_pool(&base_config(), "mydb");
         assert_eq!(pool.size(), 0, "pool should be lazy (no connections yet)");
     }
 
     #[tokio::test]
     async fn create_lazy_pool_without_password() {
-        let pool = create_lazy_pool(&DatabaseConfig {
-            password: None,
-            ..base_config()
-        });
+        let pool = create_lazy_pool(
+            &DatabaseConfig {
+                password: None,
+                ..base_config()
+            },
+            "mydb",
+        );
         assert_eq!(pool.size(), 0);
     }
 
     #[tokio::test]
     async fn create_lazy_pool_without_database_name() {
-        let pool = create_lazy_pool(&DatabaseConfig {
-            name: None,
-            ..base_config()
-        });
+        let pool = create_lazy_pool(
+            &DatabaseConfig {
+                name: None,
+                ..base_config()
+            },
+            "",
+        );
         assert_eq!(pool.size(), 0);
     }
 
     #[tokio::test]
     async fn default_db_derived_from_config() {
         let connection = MysqlConnection::new(&base_config());
-        assert_eq!(connection.default_db(), "mydb");
+        assert_eq!(connection.default_database_name(), "mydb");
     }
 
     #[tokio::test]
@@ -228,7 +225,7 @@ mod tests {
             name: None,
             ..base_config()
         });
-        assert_eq!(connection.default_db(), "");
+        assert_eq!(connection.default_database_name(), "");
     }
 
     #[tokio::test]

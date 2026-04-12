@@ -166,7 +166,7 @@ mod tests {
     #[tokio::test]
     async fn handler_exposes_connection_default_db() {
         let handler = PostgresHandler::new(&base_config());
-        assert_eq!(handler.connection.default_db(), "mydb");
+        assert_eq!(handler.connection.default_database_name(), "mydb");
     }
 
     #[tokio::test]

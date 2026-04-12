@@ -69,7 +69,7 @@ impl PostgresHandler {
         validate_identifier(name)?;
 
         // Guard: prevent dropping the currently connected database.
-        if self.connection.default_db() == name.as_str() {
+        if self.connection.default_database_name() == name.as_str() {
             return Err(AppError::Query(format!(
                 "Cannot drop the currently connected database '{name}'."
             )));
