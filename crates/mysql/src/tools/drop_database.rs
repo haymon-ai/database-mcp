@@ -68,9 +68,7 @@ impl MysqlHandler {
         validate_identifier(name)?;
 
         // Guard: prevent dropping the currently connected database.
-        if let Some(ref active) = self.config.name
-            && active.eq_ignore_ascii_case(name)
-        {
+        if self.connection.default_db().eq_ignore_ascii_case(name) {
             return Err(AppError::Query(format!(
                 "Cannot drop the currently connected database '{name}'."
             )));
@@ -78,6 +76,10 @@ impl MysqlHandler {
 
         let drop_sql = format!("DROP DATABASE {}", self.connection.quote_identifier(name));
         self.connection.execute(drop_sql.as_str(), None).await?;
+
+        // Evict the pool for the dropped database so stale connections
+        // are not reused.
+        self.connection.invalidate(name).await;
 
         Ok(MessageResponse {
             message: format!("Database '{name}' dropped successfully."),

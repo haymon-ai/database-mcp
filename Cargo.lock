@@ -501,6 +501,7 @@ dependencies = [
  "database-mcp-config",
  "database-mcp-server",
  "database-mcp-sql",
+ "moka",
  "rmcp",
  "serde",
  "serde_json",
