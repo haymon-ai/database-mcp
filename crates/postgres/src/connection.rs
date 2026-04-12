@@ -1,6 +1,6 @@
 //! `PostgreSQL` connection: pool cache, pool initialization, and [`Connection`] impl.
 //!
-//! Owns the lazy default pool and the moka cache of per-database pools.
+//! Owns a moka cache of lazily-created per-database pools (including the default).
 //! Hides every backend pool concern from [`PostgresHandler`](crate::PostgresHandler),
 //! which composes one [`PostgresConnection`] as a field.
 
@@ -21,35 +21,23 @@ pub(crate) const POOL_CACHE_CAPACITY: u64 = 16;
 #[derive(Clone)]
 pub(crate) struct PostgresConnection {
     config: DatabaseConfig,
-    default_db: String,
-    default_pool: PgPool,
     pools: Cache<String, PgPool>,
 }
 
 impl std::fmt::Debug for PostgresConnection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PostgresConnection")
-            .field("default_db", &self.default_db)
+            .field("default_db", &self.default_db())
             .finish_non_exhaustive()
     }
 }
 
 impl PostgresConnection {
-    /// Builds the connection and its lazy default pool.
+    /// Builds the connection with an empty pool cache.
     ///
-    /// Does **not** establish a database connection. The default pool
-    /// connects on demand when the first query is executed. Non-default
-    /// database pools are created lazily on first request.
+    /// Does **not** establish a database connection. All pools — including
+    /// the default — are created lazily on first request via [`pool`](Self::pool).
     pub(crate) fn new(config: &DatabaseConfig) -> Self {
-        // PostgreSQL defaults to a database named after the connecting user.
-        let default_db = config
-            .name
-            .as_deref()
-            .filter(|n| !n.is_empty())
-            .map_or_else(|| config.user.clone(), String::from);
-
-        let default_pool = pool_options(config).connect_lazy_with(connect_options(config));
-
         info!(
             "PostgreSQL lazy connection pool created (max size: {})",
             config.max_pool_size
@@ -66,15 +54,22 @@ impl PostgresConnection {
 
         Self {
             config: config.clone(),
-            default_db,
-            default_pool,
             pools,
         }
     }
 
-    /// Returns the name of the database resolved at startup.
+    /// Returns the configured default database name, or the username as fallback.
     pub(crate) fn default_db(&self) -> &str {
-        &self.default_db
+        self.config
+            .name
+            .as_deref()
+            .filter(|n| !n.is_empty())
+            .unwrap_or(&self.config.user)
+    }
+
+    /// Returns `true` if `name` matches the default database (case-sensitive).
+    fn is_default_db(&self, name: &str) -> bool {
+        name == self.default_db()
     }
 
     /// Evicts the cached pool for `name`, closing its connections.
@@ -95,25 +90,23 @@ impl PostgresConnection {
     pub(crate) async fn pool(&self, target: Option<&str>) -> Result<PgPool, AppError> {
         let db_key = match target {
             Some(name) if !name.is_empty() => name,
-            _ => return Ok(self.default_pool.clone()),
+            _ => self.default_db(),
         };
-
-        if db_key == self.default_db {
-            return Ok(self.default_pool.clone());
-        }
 
         if let Some(pool) = self.pools.get(db_key).await {
             return Ok(pool);
         }
 
-        validate_identifier(db_key)?;
+        if !self.is_default_db(db_key) {
+            validate_identifier(db_key)?;
+        }
 
         let config = self.config.clone();
-        let db_key_owned = db_key.to_owned();
+        let key = db_key.to_owned();
 
         let pool = self
             .pools
-            .get_with(db_key_owned, async {
+            .get_with(key, async {
                 let mut cfg = config;
                 cfg.name = Some(db_key.to_owned());
                 pool_options(&cfg).connect_lazy_with(connect_options(&cfg))
@@ -303,10 +296,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn new_creates_lazy_default_pool() {
+    async fn default_db_derived_from_config() {
         let connection = PostgresConnection::new(&base_config());
         assert_eq!(connection.default_db(), "mydb");
-        assert_eq!(connection.default_pool.size(), 0, "default pool should be lazy");
     }
 
     #[tokio::test]

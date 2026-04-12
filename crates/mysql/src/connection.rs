@@ -1,6 +1,6 @@
 //! `MySQL`/`MariaDB` connection: pool cache, pool initialization, and [`Connection`] impl.
 //!
-//! Owns the lazy default pool and the moka cache of per-database pools.
+//! Owns a moka cache of lazily-created per-database pools (including the default).
 //! Hides every backend pool concern from [`MysqlHandler`](crate::MysqlHandler),
 //! which composes one [`MysqlConnection`] as a field.
 
@@ -21,34 +21,23 @@ pub(crate) const POOL_CACHE_CAPACITY: u64 = 16;
 #[derive(Clone)]
 pub(crate) struct MysqlConnection {
     config: DatabaseConfig,
-    default_db: String,
-    default_pool: MySqlPool,
     pools: Cache<String, MySqlPool>,
 }
 
 impl std::fmt::Debug for MysqlConnection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MysqlConnection")
-            .field("default_db", &self.default_db)
+            .field("default_db", &self.default_db())
             .finish_non_exhaustive()
     }
 }
 
 impl MysqlConnection {
-    /// Builds the connection and its lazy default pool.
+    /// Builds the connection with an empty pool cache.
     ///
-    /// Does **not** establish a database connection. The default pool
-    /// connects on demand when the first query is executed. Non-default
-    /// database pools are created lazily on first request.
+    /// Does **not** establish a database connection. All pools — including
+    /// the default — are created lazily on first request via [`pool`](Self::pool).
     pub(crate) fn new(config: &DatabaseConfig) -> Self {
-        let default_db = config
-            .name
-            .as_deref()
-            .filter(|n| !n.is_empty())
-            .map_or_else(String::new, String::from);
-
-        let default_pool = pool_options(config).connect_lazy_with(connect_options(config));
-
         info!(
             "MySQL lazy connection pool created (max size: {})",
             config.max_pool_size
@@ -65,15 +54,19 @@ impl MysqlConnection {
 
         Self {
             config: config.clone(),
-            default_db,
-            default_pool,
             pools,
         }
     }
 
-    /// Returns the name of the database resolved at startup.
+    /// Returns the configured default database name, or `""` if none.
     pub(crate) fn default_db(&self) -> &str {
-        &self.default_db
+        self.config.name.as_deref().filter(|n| !n.is_empty()).unwrap_or("")
+    }
+
+    /// Returns `true` if `name` matches the default database (case-insensitive).
+    fn is_default_db(&self, name: &str) -> bool {
+        let default = self.default_db();
+        !default.is_empty() && default.eq_ignore_ascii_case(name)
     }
 
     /// Evicts the cached pool for `name`, closing its connections.
@@ -94,25 +87,23 @@ impl MysqlConnection {
     pub(crate) async fn pool(&self, target: Option<&str>) -> Result<MySqlPool, AppError> {
         let db_key = match target {
             Some(name) if !name.is_empty() => name,
-            _ => return Ok(self.default_pool.clone()),
+            _ => self.default_db(),
         };
-
-        if !self.default_db.is_empty() && db_key == self.default_db {
-            return Ok(self.default_pool.clone());
-        }
 
         if let Some(pool) = self.pools.get(db_key).await {
             return Ok(pool);
         }
 
-        validate_identifier(db_key)?;
+        if !self.is_default_db(db_key) {
+            validate_identifier(db_key)?;
+        }
 
         let config = self.config.clone();
-        let db_key_owned = db_key.to_owned();
+        let key = db_key.to_owned();
 
         let pool = self
             .pools
-            .get_with(db_key_owned, async {
+            .get_with(key, async {
                 let mut cfg = config;
                 cfg.name = Some(db_key.to_owned());
                 pool_options(&cfg).connect_lazy_with(connect_options(&cfg))
@@ -312,10 +303,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn new_creates_lazy_default_pool() {
+    async fn default_db_derived_from_config() {
         let connection = MysqlConnection::new(&base_config());
         assert_eq!(connection.default_db(), "mydb");
-        assert_eq!(connection.default_pool.size(), 0, "default pool should be lazy");
     }
 
     #[tokio::test]
