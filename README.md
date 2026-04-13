@@ -54,6 +54,7 @@ Add a `.mcp.json` file to your project root. MCP clients read this file and conf
   "mcpServers": {
     "database-mcp": {
       "command": "database-mcp",
+      "args": ["stdio"],
       "env": {
         "DB_BACKEND": "mysql",
         "DB_HOST": "127.0.0.1",
@@ -91,13 +92,13 @@ database-mcp http --db-backend mysql --db-user root --db-name mydb --port 9001
 
 ```bash
 # MySQL/MariaDB
-database-mcp --db-backend mysql --db-host localhost --db-user root --db-name mydb
+database-mcp stdio --db-backend mysql --db-host localhost --db-user root --db-name mydb
 
 # PostgreSQL
-database-mcp --db-backend postgres --db-host localhost --db-user postgres --db-name mydb
+database-mcp stdio --db-backend postgres --db-host localhost --db-user postgres --db-name mydb
 
 # SQLite
-database-mcp --db-backend sqlite --db-name ./data.db
+database-mcp stdio --db-backend sqlite --db-name ./data.db
 
 # HTTP transport
 database-mcp http --db-backend mysql --db-user root --db-name mydb --host 0.0.0.0 --port 9001
@@ -106,7 +107,7 @@ database-mcp http --db-backend mysql --db-user root --db-name mydb --host 0.0.0.
 ### Using environment variables
 
 ```bash
-DB_BACKEND=mysql DB_USER=root DB_NAME=mydb database-mcp
+DB_BACKEND=mysql DB_USER=root DB_NAME=mydb database-mcp stdio
 ```
 
 ## Configuration
@@ -121,8 +122,11 @@ Environment variables are typically set by your MCP client (via `env` or `envFil
 
 | Subcommand | Description |
 |------------|-------------|
-| `stdio` | Run in stdio mode (default if no subcommand given) |
+| `stdio` | Run in stdio mode |
 | `http` | Run in HTTP/SSE mode |
+| `version` | Print version information and exit |
+
+A subcommand is required — running `database-mcp` with no subcommand prints usage help and exits with a non-zero status.
 
 ### Database Options (shared across subcommands)
 
@@ -232,7 +236,7 @@ cargo test --lib
 ./tests/run.sh --filter sqlite
 
 # With MCP Inspector
-npx @modelcontextprotocol/inspector ./target/release/database-mcp
+npx @modelcontextprotocol/inspector ./target/release/database-mcp stdio
 
 # HTTP mode testing
 curl -X POST http://localhost:9001/mcp \

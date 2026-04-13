@@ -20,7 +20,8 @@
         {
           "type": "positional",
           "value": "stdio",
-          "description": "Start in stdio transport mode (default)"
+          "description": "Start in stdio transport mode",
+          "isRequired": true
         }
       ]
     },

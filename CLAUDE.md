@@ -7,7 +7,7 @@ A single-binary MCP (Model Context Protocol) server for MySQL, MariaDB, PostgreS
 ```bash
 cargo build                                    # debug build
 cargo build --release                          # release build
-cargo run -- --db-backend mysql --db-user root # stdio mode (default)
+cargo run -- stdio --db-backend mysql --db-user root # stdio transport
 cargo run -- http --db-backend mysql --db-user root --host 127.0.0.1 --port 9001
 
 cargo test                          # all tests
@@ -35,7 +35,7 @@ Cargo workspace: root binary (`database-mcp`) + 7 library crates under `crates/`
 - **`crates/postgres/`** (`database-mcp-postgres`) — PostgreSQL backend: per-database connection pool cache (moka), query operations, schema introspection, MCP handler.
 - **`crates/sqlite/`** (`database-mcp-sqlite`) — SQLite backend: single-file connection, query operations, schema introspection, MCP handler.
 - **`crates/sqlx-to-json/`** (`sqlx-to-json`) — `RowExt` trait for type-safe row-to-JSON conversion. Per-backend implementations for `SqliteRow`, `PgRow`, and `MySqlRow`.
-- **Transport**: `stdio` (default, for Claude Desktop/Cursor) and `http` (Streamable HTTP with CORS via axum + tower-http).
+- **Transport**: `stdio` (for Claude Desktop/Cursor) and `http` (Streamable HTTP with CORS via axum + tower-http). A transport subcommand is required — `database-mcp` with no subcommand prints usage help and exits non-zero.
 
 ## Configuration
 
