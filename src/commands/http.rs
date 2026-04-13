@@ -84,7 +84,7 @@ impl TryFrom<&HttpArguments> for HttpConfig {
 pub(crate) struct HttpCommand {
     /// Shared database connection flags.
     #[command(flatten)]
-    pub(crate) db_arguments: DatabaseArguments,
+    db_arguments: DatabaseArguments,
 
     /// HTTP transport flags.
     #[command(flatten)]
