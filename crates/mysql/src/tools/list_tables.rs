@@ -8,7 +8,6 @@ use database_mcp_sql::Connection as _;
 use database_mcp_sql::identifier::validate_identifier;
 use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};
-use serde_json::Value;
 
 use crate::MysqlHandler;
 
@@ -81,15 +80,10 @@ impl MysqlHandler {
     pub async fn list_tables(&self, request: &ListTablesRequest) -> Result<ListTablesResponse, AppError> {
         validate_identifier(&request.database_name)?;
         let sql = format!(
-            "SELECT TABLE_NAME AS name FROM information_schema.TABLES WHERE TABLE_SCHEMA = {} ORDER BY TABLE_NAME",
+            "SELECT CAST(TABLE_NAME AS CHAR) AS name FROM information_schema.TABLES WHERE TABLE_SCHEMA = {} ORDER BY TABLE_NAME",
             self.connection.quote_string(&request.database_name)
         );
-        let rows = self.connection.fetch_all(sql.as_str(), None).await?;
-        Ok(ListTablesResponse {
-            tables: rows
-                .iter()
-                .filter_map(|row| row.get("name").and_then(Value::as_str).map(str::to_owned))
-                .collect(),
-        })
+        let tables: Vec<String> = self.connection.fetch_scalar(sql.as_str(), None).await?;
+        Ok(ListTablesResponse { tables })
     }
 }

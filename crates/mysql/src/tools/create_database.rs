@@ -88,10 +88,10 @@ impl MysqlHandler {
         validate_identifier(name)?;
 
         let check_sql = format!(
-            "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = {}",
+            "SELECT CAST(SCHEMA_NAME AS CHAR) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = {}",
             self.connection.quote_string(name),
         );
-        let exists = self.connection.fetch_optional(check_sql.as_str(), None).await?;
+        let exists: Option<(String,)> = self.connection.fetch_optional(check_sql.as_str(), None).await?;
 
         if exists.is_some() {
             return Ok(MessageResponse {

@@ -8,7 +8,6 @@ use database_mcp_server::types::ListDatabasesResponse;
 use database_mcp_sql::Connection as _;
 use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, JsonObject, ToolAnnotations};
-use serde_json::Value;
 
 use crate::MysqlHandler;
 
@@ -82,13 +81,8 @@ impl MysqlHandler {
     ///
     /// Returns [`AppError`] if the query fails.
     pub async fn list_databases(&self) -> Result<ListDatabasesResponse, AppError> {
-        let sql = "SELECT SCHEMA_NAME AS name FROM information_schema.SCHEMATA ORDER BY SCHEMA_NAME";
-        let rows = self.connection.fetch_all(sql, None).await?;
-        Ok(ListDatabasesResponse {
-            databases: rows
-                .iter()
-                .filter_map(|row| row.get("name").and_then(Value::as_str).map(str::to_owned))
-                .collect(),
-        })
+        let sql = "SELECT CAST(SCHEMA_NAME AS CHAR) AS name FROM information_schema.SCHEMATA ORDER BY SCHEMA_NAME";
+        let databases: Vec<String> = self.connection.fetch_scalar(sql, None).await?;
+        Ok(ListDatabasesResponse { databases })
     }
 }

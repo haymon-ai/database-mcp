@@ -106,9 +106,9 @@ impl MysqlHandler {
             format!("EXPLAIN FORMAT=JSON {}", request.query)
         };
 
-        let rows = self
+        let rows: Vec<Value> = self
             .connection
-            .fetch_all(explain_sql.as_str(), Some(request.database_name.as_str()))
+            .fetch_json(explain_sql.as_str(), Some(request.database_name.as_str()))
             .await?;
         Ok(QueryResponse {
             rows: Value::Array(rows),

@@ -7,7 +7,7 @@
 
 use database_mcp_server::AppError;
 use serde_json::Value;
-use sqlx::Executor;
+use sqlx::{ColumnIndex, Decode, Executor, FromRow, Row, Type};
 use sqlx_to_json::{QueryResult as _, RowExt};
 
 use crate::identifier;
@@ -31,6 +31,7 @@ use crate::timeout::execute_with_timeout;
 pub trait Connection: Send + Sync
 where
     for<'c> &'c mut <Self::DB as sqlx::Database>::Connection: Executor<'c, Database = Self::DB>,
+    usize: ColumnIndex<<Self::DB as sqlx::Database>::Row>,
     <Self::DB as sqlx::Database>::Row: RowExt,
     <Self::DB as sqlx::Database>::QueryResult: sqlx_to_json::QueryResult,
 {
@@ -63,28 +64,65 @@ where
         .await
     }
 
-    /// Runs a statement and collects every result row as JSON.
+    /// Runs a query and decodes every result row into `T`.
     ///
     /// # Errors
     ///
     /// See trait-level documentation.
-    async fn fetch_all(&self, query: &str, database: Option<&str>) -> Result<Vec<Value>, AppError> {
+    async fn fetch_all<T>(&self, query: &str, database: Option<&str>) -> Result<Vec<T>, AppError>
+    where
+        T: for<'r> FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
+    {
         let pool = self.pool(database).await?;
         execute_with_timeout(self.query_timeout(), query, async {
-            Ok(pool.fetch_all(query).await?.iter().map(RowExt::to_json).collect())
+            let rows = pool.fetch_all(query).await?;
+            rows.iter().map(T::from_row).collect::<Result<Vec<_>, _>>()
         })
         .await
     }
 
-    /// Runs a statement and returns at most one result row as JSON.
+    /// Runs a query and decodes at most one result row into `T`.
     ///
     /// # Errors
     ///
     /// See trait-level documentation.
-    async fn fetch_optional(&self, query: &str, database: Option<&str>) -> Result<Option<Value>, AppError> {
+    async fn fetch_optional<T>(&self, query: &str, database: Option<&str>) -> Result<Option<T>, AppError>
+    where
+        T: for<'r> FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
+    {
         let pool = self.pool(database).await?;
         execute_with_timeout(self.query_timeout(), query, async {
-            Ok(pool.fetch_optional(query).await?.as_ref().map(RowExt::to_json))
+            pool.fetch_optional(query).await?.as_ref().map(T::from_row).transpose()
+        })
+        .await
+    }
+
+    /// Runs a query and extracts the first column of every row.
+    ///
+    /// # Errors
+    ///
+    /// See trait-level documentation.
+    async fn fetch_scalar<T>(&self, query: &str, database: Option<&str>) -> Result<Vec<T>, AppError>
+    where
+        T: for<'r> Decode<'r, Self::DB> + Type<Self::DB> + Send + Unpin,
+    {
+        let pool = self.pool(database).await?;
+        execute_with_timeout(self.query_timeout(), query, async {
+            let rows = pool.fetch_all(query).await?;
+            rows.iter().map(|r| r.try_get(0usize)).collect()
+        })
+        .await
+    }
+
+    /// Runs a query and collects every result row as JSON.
+    ///
+    /// # Errors
+    ///
+    /// See trait-level documentation.
+    async fn fetch_json(&self, query: &str, database: Option<&str>) -> Result<Vec<Value>, AppError> {
+        let pool = self.pool(database).await?;
+        execute_with_timeout(self.query_timeout(), query, async {
+            Ok(pool.fetch_all(query).await?.iter().map(RowExt::to_json).collect())
         })
         .await
     }
