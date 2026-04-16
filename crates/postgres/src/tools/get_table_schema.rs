@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use database_mcp_server::AppError;
 use database_mcp_server::types::{GetTableSchemaRequest, TableSchemaResponse};
 use database_mcp_sql::Connection as _;
-use database_mcp_sql::identifier::{quote_literal, validate_ident};
+use database_mcp_sql::sanitize::{quote_literal, validate_ident};
 use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};
 use serde_json::{Value, json};

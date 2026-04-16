@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use database_mcp_server::AppError;
 use database_mcp_server::types::{QueryRequest, QueryResponse};
 use database_mcp_sql::Connection as _;
-use database_mcp_sql::identifier::validate_ident;
+use database_mcp_sql::sanitize::validate_ident;
 use database_mcp_sql::validation::validate_read_only;
 use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};

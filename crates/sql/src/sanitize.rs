@@ -1,4 +1,4 @@
-//! Shared identifier quoting and validation for all database backends.
+//! SQL quoting and validation for identifiers and literals.
 
 use database_mcp_server::AppError;
 use sqlparser::dialect::Dialect;
