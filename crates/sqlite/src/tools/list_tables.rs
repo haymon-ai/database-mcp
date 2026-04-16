@@ -82,7 +82,11 @@ impl SqliteHandler {
     ///
     /// Returns [`AppError`] if the query fails.
     pub async fn list_tables(&self) -> Result<ListTablesResponse, AppError> {
-        let sql = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name";
+        let sql = r"
+            SELECT name
+            FROM sqlite_master
+            WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+            ORDER BY name";
         let tables: Vec<String> = self.connection.fetch_scalar(sql, None).await?;
         Ok(ListTablesResponse { tables })
     }

@@ -1,24 +1,43 @@
-//! Shared identifier validation for all database backends.
+//! Shared identifier quoting and validation for all database backends.
 
 use database_mcp_server::AppError;
+use sqlparser::dialect::Dialect;
 
-/// Wraps `name` in `quote_char` for safe use in SQL statements.
+/// Wraps `value` in the dialect's identifier quote character.
 ///
-/// Escapes internal occurrences of `quote_char` by doubling them.
+/// Derives the quote character from [`Dialect::identifier_quote_style`],
+/// falling back to `"` (ANSI double-quote) when the dialect returns `None`.
+/// Escapes internal occurrences of the quote character by doubling them.
 #[must_use]
-pub fn quote_identifier(name: &str, quote_char: char) -> String {
-    let doubled: String = std::iter::repeat_n(quote_char, 2).collect();
-    let escaped = name.replace(quote_char, &doubled);
-    format!("{quote_char}{escaped}{quote_char}")
+pub fn quote_ident(value: &str, dialect: &impl Dialect) -> String {
+    let q = dialect.identifier_quote_style(value).unwrap_or('"');
+    let mut out = String::with_capacity(value.len() + 2);
+    out.push(q);
+    for ch in value.chars() {
+        if ch == q {
+            out.push(q);
+        }
+        out.push(ch);
+    }
+    out.push(q);
+    out
 }
 
-/// Wraps `value` in single quotes for safe use as a SQL string literal.
+/// Wraps `value` in single quotes for use as a SQL string literal.
 ///
 /// Escapes internal single quotes by doubling them.
 #[must_use]
-pub fn quote_string(value: &str) -> String {
-    let escaped = value.replace('\'', "''");
-    format!("'{escaped}'")
+pub fn quote_literal(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + 2);
+    out.push('\'');
+    for ch in value.chars() {
+        if ch == '\'' {
+            out.push('\'');
+        }
+        out.push(ch);
+    }
+    out.push('\'');
+    out
 }
 
 /// Validates that `name` is a non-empty identifier without control characters.
@@ -27,11 +46,8 @@ pub fn quote_string(value: &str) -> String {
 ///
 /// Returns [`AppError::InvalidIdentifier`] if the name is empty,
 /// whitespace-only, or contains control characters.
-pub fn validate_identifier(name: &str) -> Result<(), AppError> {
-    if name.is_empty() || name.chars().all(char::is_whitespace) {
-        return Err(AppError::InvalidIdentifier(name.to_string()));
-    }
-    if name.chars().any(char::is_control) {
+pub fn validate_ident(name: &str) -> Result<(), AppError> {
+    if name.trim().is_empty() || name.chars().any(char::is_control) {
         return Err(AppError::InvalidIdentifier(name.to_string()));
     }
     Ok(())
@@ -39,73 +55,76 @@ pub fn validate_identifier(name: &str) -> Result<(), AppError> {
 
 #[cfg(test)]
 mod tests {
+    use sqlparser::dialect::{MySqlDialect, PostgreSqlDialect, SQLiteDialect};
+
     use super::*;
 
     #[test]
     fn accepts_standard_names() {
-        assert!(validate_identifier("users").is_ok());
-        assert!(validate_identifier("my_table").is_ok());
-        assert!(validate_identifier("DB_123").is_ok());
+        assert!(validate_ident("users").is_ok());
+        assert!(validate_ident("my_table").is_ok());
+        assert!(validate_ident("DB_123").is_ok());
     }
 
     #[test]
     fn accepts_hyphenated_names() {
-        assert!(validate_identifier("eu-docker").is_ok());
-        assert!(validate_identifier("access-logs").is_ok());
+        assert!(validate_ident("eu-docker").is_ok());
+        assert!(validate_ident("access-logs").is_ok());
     }
 
     #[test]
     fn accepts_special_chars() {
-        assert!(validate_identifier("my.db").is_ok());
-        assert!(validate_identifier("123db").is_ok());
-        assert!(validate_identifier("café").is_ok());
-        assert!(validate_identifier("a b").is_ok());
+        assert!(validate_ident("my.db").is_ok());
+        assert!(validate_ident("123db").is_ok());
+        assert!(validate_ident("café").is_ok());
+        assert!(validate_ident("a b").is_ok());
     }
 
     #[test]
     fn rejects_empty() {
-        assert!(validate_identifier("").is_err());
+        assert!(validate_ident("").is_err());
     }
 
     #[test]
     fn rejects_whitespace_only() {
-        assert!(validate_identifier("   ").is_err());
-        assert!(validate_identifier("\t").is_err());
+        assert!(validate_ident("   ").is_err());
+        assert!(validate_ident("\t").is_err());
     }
 
     #[test]
     fn rejects_control_chars() {
-        assert!(validate_identifier("test\x00db").is_err());
-        assert!(validate_identifier("test\ndb").is_err());
-        assert!(validate_identifier("test\x1Fdb").is_err());
+        assert!(validate_ident("test\x00db").is_err());
+        assert!(validate_ident("test\ndb").is_err());
+        assert!(validate_ident("test\x1Fdb").is_err());
     }
 
     #[test]
-    fn quote_with_double_quotes() {
-        assert_eq!(quote_identifier("users", '"'), "\"users\"");
-        assert_eq!(quote_identifier("eu-docker", '"'), "\"eu-docker\"");
-        assert_eq!(quote_identifier("test\"db", '"'), "\"test\"\"db\"");
+    fn quote_with_postgres_dialect() {
+        let d = PostgreSqlDialect {};
+        assert_eq!(quote_ident("users", &d), "\"users\"");
+        assert_eq!(quote_ident("eu-docker", &d), "\"eu-docker\"");
+        assert_eq!(quote_ident("test\"db", &d), "\"test\"\"db\"");
     }
 
     #[test]
-    fn quote_with_backticks() {
-        assert_eq!(quote_identifier("users", '`'), "`users`");
-        assert_eq!(quote_identifier("test`db", '`'), "`test``db`");
+    fn quote_with_mysql_dialect() {
+        let d = MySqlDialect {};
+        assert_eq!(quote_ident("users", &d), "`users`");
+        assert_eq!(quote_ident("test`db", &d), "`test``db`");
     }
 
     #[test]
-    fn quote_string_normal() {
-        assert_eq!(quote_string("my_db"), "'my_db'");
+    fn quote_with_sqlite_dialect() {
+        let d = SQLiteDialect {};
+        assert_eq!(quote_ident("users", &d), "`users`");
+        assert_eq!(quote_ident("test`db", &d), "`test``db`");
     }
 
     #[test]
-    fn quote_string_empty() {
-        assert_eq!(quote_string(""), "''");
-    }
-
-    #[test]
-    fn quote_string_with_single_quotes() {
-        assert_eq!(quote_string("it's"), "'it''s'");
-        assert_eq!(quote_string("a'b'c"), "'a''b''c'");
+    fn quote_literal_escapes_single_quotes() {
+        assert_eq!(quote_literal("my_db"), "'my_db'");
+        assert_eq!(quote_literal(""), "''");
+        assert_eq!(quote_literal("it's"), "'it''s'");
+        assert_eq!(quote_literal("a'b'c"), "'a''b''c'");
     }
 }

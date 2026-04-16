@@ -5,6 +5,7 @@ use std::borrow::Cow;
 use database_mcp_server::AppError;
 use database_mcp_server::types::{ListTablesRequest, ListTablesResponse};
 use database_mcp_sql::Connection as _;
+use database_mcp_sql::identifier::validate_ident;
 use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};
 
@@ -77,12 +78,17 @@ impl PostgresHandler {
     ///
     /// Returns [`AppError`] if the identifier is invalid or the query fails.
     pub async fn list_tables(&self, request: &ListTablesRequest) -> Result<ListTablesResponse, AppError> {
-        let db = if request.database_name.is_empty() {
-            None
-        } else {
-            Some(request.database_name.as_str())
-        };
-        let sql = "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename";
+        let ListTablesRequest { database_name } = request;
+
+        let db = Some(database_name.trim()).filter(|s| !s.is_empty());
+        if let Some(name) = &db {
+            validate_ident(name)?;
+        }
+        let sql = r"
+            SELECT tablename
+            FROM pg_tables
+            WHERE schemaname = 'public'
+            ORDER BY tablename";
         let tables: Vec<String> = self.connection.fetch_scalar(sql, db).await?;
         Ok(ListTablesResponse { tables })
     }

@@ -1,24 +1,21 @@
 //! Connection abstraction shared across database backends.
 //!
 //! Defines [`Connection`] — the single trait every backend implements.
-//! Backends provide pool resolution, identifier quoting config, and
-//! timeout config; default method implementations handle query execution
-//! and SQL quoting.
+//! Backends provide pool resolution and timeout config; default method
+//! implementations handle query execution.
 
 use database_mcp_server::AppError;
 use serde_json::Value;
 use sqlx::{Decode, Executor, Row, Type};
 use sqlx_to_json::{QueryResult as _, RowExt};
 
-use crate::identifier;
 use crate::timeout::execute_with_timeout;
 
-/// Unified query and quoting surface every backend tool handler uses.
+/// Unified query surface every backend tool handler uses.
 ///
-/// Backends supply four required items — [`DB`](Connection::DB),
-/// [`IDENTIFIER_QUOTE`](Connection::IDENTIFIER_QUOTE),
+/// Backends supply three required items — [`DB`](Connection::DB),
 /// [`pool`](Connection::pool), and [`query_timeout`](Connection::query_timeout)
-/// — and receive default implementations for query execution and SQL quoting.
+/// — and receive default implementations for query execution.
 ///
 /// # Errors
 ///
@@ -37,9 +34,6 @@ where
 {
     /// The sqlx database driver type (e.g. `sqlx::MySql`).
     type DB: sqlx::Database;
-
-    /// Character used to quote identifiers (`` ` `` for `MySQL`, `"` for `PostgreSQL`/`SQLite`).
-    const IDENTIFIER_QUOTE: char;
 
     /// Resolves the connection pool for the given target database.
     ///
@@ -112,15 +106,5 @@ where
             rows.iter().map(|r| r.try_get(0usize)).collect()
         })
         .await
-    }
-
-    /// Wraps `name` in the backend's identifier quote character.
-    fn quote_identifier(&self, name: &str) -> String {
-        identifier::quote_identifier(name, Self::IDENTIFIER_QUOTE)
-    }
-
-    /// Wraps `value` in single quotes for use as a SQL string literal.
-    fn quote_string(&self, value: &str) -> String {
-        identifier::quote_string(value)
     }
 }
