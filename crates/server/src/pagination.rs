@@ -21,9 +21,6 @@ use rmcp::schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use serde::de::{Error as DeError, Unexpected};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-/// Maximum number of items a paginated tool returns in a single response.
-pub const PAGE_SIZE: usize = 100;
-
 const CURRENT_VERSION: u8 = 1;
 
 /// Opaque pagination cursor carried on paginated tool requests / responses.
@@ -118,12 +115,7 @@ mod tests {
     use base64::engine::general_purpose::URL_SAFE_NO_PAD;
     use serde_json::{Value, json};
 
-    use super::{Cursor, PAGE_SIZE, decode_cursor, encode_cursor};
-
-    #[test]
-    fn page_size_is_100() {
-        assert_eq!(PAGE_SIZE, 100);
-    }
+    use super::{Cursor, decode_cursor, encode_cursor};
 
     #[test]
     fn encode_decode_round_trips_representative_offsets() {

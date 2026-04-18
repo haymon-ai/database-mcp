@@ -30,6 +30,14 @@ fn handler(read_only: bool) -> SqliteHandler {
     SqliteHandler::new(&config)
 }
 
+fn handler_with_page_size(page_size: u16) -> SqliteHandler {
+    let config = DatabaseConfig {
+        page_size,
+        ..base_db_config(false)
+    };
+    SqliteHandler::new(&config)
+}
+
 #[tokio::test]
 async fn test_write_query_insert_and_verify() {
     let handler = handler(false);
@@ -679,7 +687,7 @@ async fn test_list_tables_pagination_small_table_count_returns_single_page() {
     assert!(mine.len() >= 37, "expected 37 seeded tables, saw {}", mine.len());
     assert!(
         response.next_cursor.is_none(),
-        "response under PAGE_SIZE must not emit nextCursor"
+        "response under the default page_size (100) must not emit nextCursor"
     );
 
     drop_seeded_tables(&handler, prefix, 37).await;
@@ -692,7 +700,7 @@ async fn test_list_tables_pagination_exactly_at_boundary_no_next_cursor() {
     drop_seeded_tables(&handler, prefix, 200).await;
 
     // First clear seeded tables' influence: count the seeded fixture tables that start with prefix (should be zero).
-    // Seed exactly enough to push total to 100 (PAGE_SIZE) — 100 minus whatever baseline exists.
+    // Seed exactly enough to push total to 100 (the default page_size) — 100 minus whatever baseline exists.
     let baseline = handler
         .list_tables(&ListTablesRequest::default())
         .await
@@ -744,8 +752,11 @@ async fn test_list_tables_pagination_traverses_over_250_tables() {
 async fn test_list_tables_pagination_empty_database_returns_no_next_cursor() {
     let handler = handler(true);
     let response = handler.list_tables(&ListTablesRequest::default()).await.unwrap();
-    // Not strictly empty (seeded fixture exists), but tested database has fewer than PAGE_SIZE tables.
-    assert!(response.tables.len() < 100, "seeded fixture must stay under PAGE_SIZE");
+    // Not strictly empty (seeded fixture exists), but tested database has fewer than the default page_size (100).
+    assert!(
+        response.tables.len() < 100,
+        "seeded fixture must stay under the default page_size (100)"
+    );
     assert!(
         response.next_cursor.is_none(),
         "small table set must not emit nextCursor"
@@ -768,6 +779,48 @@ async fn test_list_tables_pagination_off_the_end_cursor_returns_empty_page() {
         response.tables
     );
     assert!(response.next_cursor.is_none(), "off-the-end must not emit nextCursor");
+}
+
+#[tokio::test]
+async fn test_list_tables_respects_configured_page_size() {
+    let handler = handler_with_page_size(50);
+    let prefix = "pg_cfg_50";
+    drop_seeded_tables(&handler, prefix, 120).await;
+    seed_n_tables(&handler, prefix, 120).await;
+
+    let collected = collect_all_paged(&handler, prefix).await;
+
+    assert_eq!(collected.len(), 120, "all 120 seeded tables must be returned");
+
+    // First page must be exactly 50 when total (seed + baseline) exceeds 50.
+    let first = handler
+        .list_tables(&ListTablesRequest::default())
+        .await
+        .expect("first page");
+    assert_eq!(first.tables.len(), 50, "configured page_size=50 must cap page 1");
+    assert!(
+        first.next_cursor.is_some(),
+        "page 1 must emit nextCursor with total > 50"
+    );
+
+    drop_seeded_tables(&handler, prefix, 120).await;
+}
+
+#[tokio::test]
+async fn test_list_tables_respects_configured_page_size_minimum() {
+    let handler = handler_with_page_size(1);
+    let prefix = "pg_cfg_1";
+    drop_seeded_tables(&handler, prefix, 3).await;
+    seed_n_tables(&handler, prefix, 3).await;
+
+    let first = handler
+        .list_tables(&ListTablesRequest::default())
+        .await
+        .expect("first page");
+    assert_eq!(first.tables.len(), 1, "page_size=1 must return one table per page");
+    assert!(first.next_cursor.is_some(), "page 1 must emit nextCursor");
+
+    drop_seeded_tables(&handler, prefix, 3).await;
 }
 
 #[tokio::test]

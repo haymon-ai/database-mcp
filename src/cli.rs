@@ -111,3 +111,50 @@ pub(crate) async fn run() -> Result<(), Error> {
         Command::Http(cmd) => cmd.execute().await,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use clap::CommandFactory;
+
+    use super::Arguments;
+
+    fn stdio_help() -> String {
+        let mut cmd = Arguments::command();
+        let sub = cmd.find_subcommand_mut("stdio").expect("stdio subcommand");
+        sub.render_long_help().to_string()
+    }
+
+    fn http_help() -> String {
+        let mut cmd = Arguments::command();
+        let sub = cmd.find_subcommand_mut("http").expect("http subcommand");
+        sub.render_long_help().to_string()
+    }
+
+    #[test]
+    fn stdio_help_documents_db_page_size_flag() {
+        let help = stdio_help();
+        assert!(
+            help.contains("--db-page-size"),
+            "help missing --db-page-size flag:\n{help}"
+        );
+        assert!(
+            help.contains("DB_PAGE_SIZE"),
+            "help missing DB_PAGE_SIZE env binding:\n{help}"
+        );
+        assert!(help.contains("[default: 100]"), "help missing [default: 100]:\n{help}");
+    }
+
+    #[test]
+    fn http_help_documents_db_page_size_flag() {
+        let help = http_help();
+        assert!(
+            help.contains("--db-page-size"),
+            "help missing --db-page-size flag:\n{help}"
+        );
+        assert!(
+            help.contains("DB_PAGE_SIZE"),
+            "help missing DB_PAGE_SIZE env binding:\n{help}"
+        );
+        assert!(help.contains("[default: 100]"), "help missing [default: 100]:\n{help}");
+    }
+}

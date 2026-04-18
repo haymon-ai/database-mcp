@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 
-use database_mcp_server::pagination::{Cursor, PAGE_SIZE};
+use database_mcp_server::pagination::Cursor;
 use database_mcp_server::types::{ListTablesRequest, ListTablesResponse};
 use database_mcp_sql::Connection as _;
 use database_mcp_sql::sanitize::validate_ident;
@@ -37,7 +37,7 @@ A sorted JSON array of table name strings.
 </what_it_returns>
 
 <pagination>
-This tool returns up to 100 tables per call. If more tables exist, the response includes a `nextCursor` string — call `list_tables` again with that string as the `cursor` argument to fetch the next page. Iterate until `nextCursor` is absent.
+This tool paginates its response. If more tables exist than fit in one page, the response includes a `nextCursor` string — call `list_tables` again with that string as the `cursor` argument to fetch the next page. Iterate until `nextCursor` is absent.
 
 Cursors are opaque: do not parse, modify, or persist them across sessions. Passing a malformed or stale cursor returns a JSON-RPC error (code -32602); recover by retrying without a cursor to restart from the first page.
 
@@ -95,7 +95,8 @@ impl PostgresHandler {
             validate_ident(name)?;
         }
         let offset = cursor.map_or(0, |c| c.offset);
-        let fetch_limit = PAGE_SIZE + 1;
+        let page_size = usize::from(self.config.page_size);
+        let fetch_limit = page_size + 1;
         let sql = format!(
             r"
             SELECT tablename
@@ -105,10 +106,10 @@ impl PostgresHandler {
             LIMIT {fetch_limit} OFFSET {offset}",
         );
         let mut tables: Vec<String> = self.connection.fetch_scalar(sql.as_str(), db).await?;
-        let next_cursor = if tables.len() > PAGE_SIZE {
-            tables.truncate(PAGE_SIZE);
+        let next_cursor = if tables.len() > page_size {
+            tables.truncate(page_size);
             Some(Cursor {
-                offset: offset + PAGE_SIZE as u64,
+                offset: offset + page_size as u64,
             })
         } else {
             None
@@ -129,6 +130,14 @@ mod tests {
         assert!(
             desc.contains("-32602"),
             "description must mention the invalid-cursor error code"
+        );
+    }
+
+    #[test]
+    fn description_does_not_state_specific_page_size() {
+        assert!(
+            !ListTablesTool::DESCRIPTION.contains("100"),
+            "description must not hard-state `100` tables — page size is operator-configurable"
         );
     }
 }

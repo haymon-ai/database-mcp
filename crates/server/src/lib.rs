@@ -7,6 +7,6 @@ pub mod pagination;
 mod server;
 pub mod types;
 
-pub use pagination::{Cursor, PAGE_SIZE};
+pub use pagination::Cursor;
 pub use server::{Server, server_info};
 pub use types::{CreateDatabaseRequest, ExplainQueryRequest, GetTableSchemaRequest, ListTablesRequest, QueryRequest};

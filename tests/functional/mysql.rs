@@ -38,6 +38,14 @@ fn handler(read_only: bool) -> MysqlHandler {
     MysqlHandler::new(&config)
 }
 
+fn handler_with_page_size(page_size: u16) -> MysqlHandler {
+    let config = DatabaseConfig {
+        page_size,
+        ..base_db_config(false)
+    };
+    MysqlHandler::new(&config)
+}
+
 #[tokio::test]
 async fn test_write_query_insert_and_verify() {
     let handler = handler(false);
@@ -1332,12 +1340,12 @@ async fn test_list_tables_pagination_small_table_set_no_next_cursor() {
         .unwrap();
     assert!(
         response.tables.len() <= 100,
-        "seeded fixture must stay within PAGE_SIZE for this assertion"
+        "seeded fixture must stay within the default page_size (100) for this assertion"
     );
     if response.tables.len() < 100 {
         assert!(
             response.next_cursor.is_none(),
-            "under PAGE_SIZE must not emit nextCursor"
+            "under the default page_size (100) must not emit nextCursor"
         );
     }
 }
@@ -1359,4 +1367,50 @@ async fn test_list_tables_pagination_off_the_end_cursor_returns_empty_page() {
         response.tables
     );
     assert!(response.next_cursor.is_none(), "off-the-end must not emit nextCursor");
+}
+
+#[tokio::test]
+async fn test_list_tables_respects_configured_page_size() {
+    let handler = handler_with_page_size(50);
+    let prefix = "pg_cfg_50";
+    drop_seeded_tables(&handler, prefix, 120).await;
+    seed_n_tables(&handler, prefix, 120).await;
+
+    let collected = collect_all_paged(&handler, prefix).await;
+    assert_eq!(collected.len(), 120, "all 120 seeded tables must be returned");
+
+    let first = handler
+        .list_tables(&ListTablesRequest {
+            database_name: PG_DB.into(),
+            ..Default::default()
+        })
+        .await
+        .expect("first page");
+    assert_eq!(first.tables.len(), 50, "configured page_size=50 must cap page 1");
+    assert!(
+        first.next_cursor.is_some(),
+        "page 1 must emit nextCursor with total > 50"
+    );
+
+    drop_seeded_tables(&handler, prefix, 120).await;
+}
+
+#[tokio::test]
+async fn test_list_tables_respects_configured_page_size_minimum() {
+    let handler = handler_with_page_size(1);
+    let prefix = "pg_cfg_1";
+    drop_seeded_tables(&handler, prefix, 3).await;
+    seed_n_tables(&handler, prefix, 3).await;
+
+    let first = handler
+        .list_tables(&ListTablesRequest {
+            database_name: PG_DB.into(),
+            ..Default::default()
+        })
+        .await
+        .expect("first page");
+    assert_eq!(first.tables.len(), 1, "page_size=1 must return one table per page");
+    assert!(first.next_cursor.is_some(), "page 1 must emit nextCursor");
+
+    drop_seeded_tables(&handler, prefix, 3).await;
 }
