@@ -3,9 +3,8 @@
 //! Implements the cursor conventions described in the MCP specification
 //! (`cursor` / `nextCursor`, opaque tokens, JSON-RPC `-32602` on invalid
 //! input). Cursors are base64url-encoded JSON objects of the form
-//! `{"o": <offset>, "v": 1}`; the `v` field enables future format
-//! evolution. The encoding is an implementation detail — clients MUST
-//! treat cursors as opaque strings.
+//! `{"offset": <offset>}`. The encoding is an implementation detail —
+//! clients MUST treat cursors as opaque strings.
 //!
 //! Tool requests declare their cursor as [`Option<Cursor>`]; the custom
 //! `Serialize`/`Deserialize` impls encode to / decode from the base64url
@@ -21,18 +20,10 @@ use rmcp::schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use serde::de::{Error as DeError, Unexpected};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-const CURRENT_VERSION: u8 = 1;
-
 /// Wire-format payload carried inside an encoded [`Cursor`].
-///
-/// The short field names (`o`, `v`) keep encoded cursors compact.
-/// Clients must treat cursors as opaque, so the shape is free to
-/// evolve — `v` exists so older cursors can be rejected with a
-/// deterministic error if the format ever changes.
 #[derive(Serialize, Deserialize)]
 struct Payload {
-    o: u64,
-    v: u8,
+    offset: u64,
 }
 
 /// Opaque pagination cursor carried on paginated tool requests / responses.
@@ -132,10 +123,7 @@ impl Pager {
 
 /// Encodes a zero-based page offset as an opaque cursor string.
 fn encode_cursor(offset: u64) -> String {
-    let payload = Payload {
-        o: offset,
-        v: CURRENT_VERSION,
-    };
+    let payload = Payload { offset };
     let json = serde_json::to_vec(&payload).expect("Payload is infallible to serialize");
     URL_SAFE_NO_PAD.encode(&json)
 }
@@ -147,10 +135,7 @@ fn decode_cursor(raw: &str) -> Result<u64, &'static str> {
         .map_err(|_| "invalid pagination cursor: not valid base64")?;
     let payload: Payload =
         serde_json::from_slice(&bytes).map_err(|_| "invalid pagination cursor: payload is malformed")?;
-    if payload.v != CURRENT_VERSION {
-        return Err("invalid pagination cursor: unsupported format version");
-    }
-    Ok(payload.o)
+    Ok(payload.offset)
 }
 
 #[cfg(test)]
@@ -218,23 +203,32 @@ mod tests {
 
     #[test]
     fn cursor_deserialization_rejects_payload_missing_fields() {
-        let raw = URL_SAFE_NO_PAD.encode(b"{\"o\":1}");
+        let raw = URL_SAFE_NO_PAD.encode(b"{}");
         let err = serde_json::from_value::<Cursor>(json!(raw)).expect_err("should fail");
         assert!(err.to_string().contains("malformed"), "error: {err}");
     }
 
     #[test]
     fn cursor_deserialization_rejects_negative_offset() {
-        let raw = URL_SAFE_NO_PAD.encode(b"{\"o\":-1,\"v\":1}");
+        let raw = URL_SAFE_NO_PAD.encode(b"{\"offset\":-1}");
         let err = serde_json::from_value::<Cursor>(json!(raw)).expect_err("should fail");
         assert!(err.to_string().contains("malformed"), "error: {err}");
     }
 
     #[test]
-    fn cursor_deserialization_rejects_unknown_version() {
-        let raw = URL_SAFE_NO_PAD.encode(b"{\"o\":0,\"v\":9}");
-        let err = serde_json::from_value::<Cursor>(json!(raw)).expect_err("should fail");
-        assert!(err.to_string().contains("version"), "error: {err}");
+    fn encoded_cursor_payload_uses_offset_key() {
+        let raw = serde_json::to_value(Cursor { offset: 100 }).unwrap();
+        let Value::String(s) = raw else {
+            panic!("expected string cursor, got {raw:?}");
+        };
+        let bytes = URL_SAFE_NO_PAD.decode(s.as_bytes()).unwrap();
+        let payload: Value = serde_json::from_slice(&bytes).unwrap();
+        let obj = payload.as_object().expect("payload should be a JSON object");
+        assert_eq!(
+            obj.get("offset").and_then(Value::as_u64),
+            Some(100),
+            "payload should carry offset under the `offset` key: {obj:?}"
+        );
     }
 
     #[test]
