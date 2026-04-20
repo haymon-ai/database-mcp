@@ -193,12 +193,12 @@ async fn test_gets_table_schema_with_relations() {
     assert!(columns.contains_key("user_id"), "Missing 'user_id' column");
     let user_id = columns["user_id"].as_object().expect("user_id object");
     assert!(
-        user_id.contains_key("foreign_key"),
-        "Missing 'foreign_key' in user_id column"
+        user_id.contains_key("foreignKey"),
+        "Missing 'foreignKey' in user_id column"
     );
     assert!(
-        !user_id["foreign_key"].is_null(),
-        "foreign_key should not be null for user_id"
+        !user_id["foreignKey"].is_null(),
+        "foreignKey should not be null for user_id"
     );
 }
 
@@ -871,13 +871,13 @@ async fn test_get_table_schema_junction_table() {
     // Both columns should have foreign keys
     let post_id = columns["post_id"].as_object().expect("post_id object");
     assert!(
-        post_id.get("foreign_key").is_some_and(|fk| !fk.is_null()),
+        post_id.get("foreignKey").is_some_and(|fk| !fk.is_null()),
         "post_id should have a foreign key"
     );
 
     let tag_id = columns["tag_id"].as_object().expect("tag_id object");
     assert!(
-        tag_id.get("foreign_key").is_some_and(|fk| !fk.is_null()),
+        tag_id.get("foreignKey").is_some_and(|fk| !fk.is_null()),
         "tag_id should have a foreign key"
     );
 }

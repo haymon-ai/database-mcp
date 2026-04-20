@@ -1,4 +1,4 @@
-//! MCP tool: `create_database`.
+//! MCP tool: `createDatabase`.
 
 use std::borrow::Cow;
 
@@ -12,11 +12,11 @@ use sqlparser::dialect::MySqlDialect;
 
 use crate::MysqlHandler;
 
-/// Marker type for the `create_database` MCP tool.
+/// Marker type for the `createDatabase` MCP tool.
 pub(crate) struct CreateDatabaseTool;
 
 impl CreateDatabaseTool {
-    const NAME: &'static str = "create_database";
+    const NAME: &'static str = "createDatabase";
     const TITLE: &'static str = "Create Database";
     const DESCRIPTION: &'static str = r#"Create a new database on the connected server.
 
@@ -27,8 +27,8 @@ Use when:
 </usecase>
 
 <examples>
-✓ "Create a database called analytics" → create_database(database_name="analytics")
-✗ "Create a table" → use write_query with CREATE TABLE
+✓ "Create a database called analytics" → createDatabase(databaseName="analytics")
+✗ "Create a table" → use writeQuery with CREATE TABLE
 </examples>
 
 <important>

@@ -6,10 +6,11 @@ use rmcp::schemars;
 use rmcp::schemars::JsonSchema;
 use serde::Deserialize;
 
-/// Request for the `drop_table` tool.
+/// Request for the `dropTable` tool.
 #[derive(Debug, Default, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct DropTableRequest {
-    /// The database containing the table. Required. Use `list_databases` first to see available databases.
+    /// The database containing the table. Required. Use `listDatabases` first to see available databases.
     pub database_name: String,
     /// Name of the table to drop. Must contain only alphanumeric characters and underscores.
     pub table_name: String,

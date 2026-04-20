@@ -1,4 +1,4 @@
-//! MCP tool: `list_tables`.
+//! MCP tool: `listTables`.
 
 use std::borrow::Cow;
 
@@ -11,13 +11,13 @@ use rmcp::model::{ErrorData, ToolAnnotations};
 
 use crate::MysqlHandler;
 
-/// Marker type for the `list_tables` MCP tool.
+/// Marker type for the `listTables` MCP tool.
 pub(crate) struct ListTablesTool;
 
 impl ListTablesTool {
-    const NAME: &'static str = "list_tables";
+    const NAME: &'static str = "listTables";
     const TITLE: &'static str = "List Tables";
-    const DESCRIPTION: &'static str = r#"List all tables in a specific database. Requires `database_name` — call `list_databases` first to discover available databases.
+    const DESCRIPTION: &'static str = r#"List all tables in a specific database. Requires `databaseName` — call `listDatabases` first to discover available databases.
 
 <usecase>
 Use when:
@@ -27,9 +27,9 @@ Use when:
 </usecase>
 
 <examples>
-✓ "What tables are in the mydb database?" → list_tables(database_name="mydb")
-✓ "Does a users table exist?" → list_tables to check
-✗ "Show me the columns of users" → use get_table_schema instead
+✓ "What tables are in the mydb database?" → listTables(databaseName="mydb")
+✓ "Does a users table exist?" → listTables to check
+✗ "Show me the columns of users" → use getTableSchema instead
 </examples>
 
 <what_it_returns>
@@ -81,7 +81,7 @@ impl MysqlHandler {
     /// # Errors
     ///
     /// Returns [`ErrorData`] with code `-32602` if `cursor` is malformed,
-    /// or an internal-error [`ErrorData`] if `database_name` is invalid
+    /// or an internal-error [`ErrorData`] if `databaseName` is invalid
     /// or the underlying query fails.
     pub async fn list_tables(
         &self,

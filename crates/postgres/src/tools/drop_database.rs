@@ -1,4 +1,4 @@
-//! MCP tool: `drop_database`.
+//! MCP tool: `dropDatabase`.
 
 use std::borrow::Cow;
 
@@ -12,11 +12,11 @@ use sqlparser::dialect::PostgreSqlDialect;
 
 use crate::PostgresHandler;
 
-/// Marker type for the `drop_database` MCP tool.
+/// Marker type for the `dropDatabase` MCP tool.
 pub(crate) struct DropDatabaseTool;
 
 impl DropDatabaseTool {
-    const NAME: &'static str = "drop_database";
+    const NAME: &'static str = "dropDatabase";
     const TITLE: &'static str = "Drop Database";
     const DESCRIPTION: &'static str = r#"Drop an existing database from the connected server.
 
@@ -27,8 +27,8 @@ Use when:
 </usecase>
 
 <examples>
-✓ "Drop the test_db database" → drop_database(database_name="test_db")
-✗ "Drop a table" → use drop_table instead
+✓ "Drop the test_db database" → dropDatabase(databaseName="test_db")
+✗ "Drop a table" → use dropTable instead
 </examples>
 
 <safety>

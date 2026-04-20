@@ -1,4 +1,4 @@
-//! MCP tool: `drop_table`.
+//! MCP tool: `dropTable`.
 
 use std::borrow::Cow;
 
@@ -13,11 +13,11 @@ use sqlparser::dialect::MySqlDialect;
 use crate::MysqlHandler;
 use crate::types::DropTableRequest;
 
-/// Marker type for the `drop_table` MCP tool.
+/// Marker type for the `dropTable` MCP tool.
 pub(crate) struct DropTableTool;
 
 impl DropTableTool {
-    const NAME: &'static str = "drop_table";
+    const NAME: &'static str = "dropTable";
     const TITLE: &'static str = "Drop Table";
     const DESCRIPTION: &'static str = r#"Drop a table from a database.
 
@@ -28,9 +28,9 @@ Use when:
 </usecase>
 
 <examples>
-✓ "Drop the temp_logs table from mydb" → drop_table(database_name="mydb", table_name="temp_logs")
-✗ "Delete rows from a table" → use write_query with DELETE
-✗ "Drop a database" → use drop_database instead
+✓ "Drop the temp_logs table from mydb" → dropTable(databaseName="mydb", tableName="temp_logs")
+✗ "Delete rows from a table" → use writeQuery with DELETE
+✗ "Drop a database" → use dropDatabase instead
 </examples>
 
 <safety>
