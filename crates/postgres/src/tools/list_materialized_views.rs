@@ -87,7 +87,7 @@ impl PostgresHandler {
         &self,
         ListMaterializedViewsRequest { database, cursor }: ListMaterializedViewsRequest,
     ) -> Result<ListMaterializedViewsResponse, ErrorData> {
-        let db = Some(database.trim()).filter(|s| !s.is_empty());
+        let db = database.as_deref().map(str::trim).filter(|s| !s.is_empty());
         if let Some(name) = db {
             validate_ident(name)?;
         }

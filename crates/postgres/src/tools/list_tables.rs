@@ -17,7 +17,7 @@ pub(crate) struct ListTablesTool;
 impl ListTablesTool {
     const NAME: &'static str = "listTables";
     const TITLE: &'static str = "List Tables";
-    const DESCRIPTION: &'static str = r#"List all tables in a specific database. Requires `database` — call `listDatabases` first to discover available databases.
+    const DESCRIPTION: &'static str = r#"List all tables in a specific database. `database` is optional and defaults to the server's configured `--db-name`; call `listDatabases` to discover other databases.
 
 <usecase>
 Use when:
@@ -87,7 +87,7 @@ impl PostgresHandler {
         &self,
         ListTablesRequest { database, cursor }: ListTablesRequest,
     ) -> Result<ListTablesResponse, ErrorData> {
-        let db = Some(database.trim()).filter(|s| !s.is_empty());
+        let db = database.as_deref().map(str::trim).filter(|s| !s.is_empty());
         if let Some(name) = db {
             validate_ident(name)?;
         }

@@ -29,13 +29,13 @@ const DESCRIPTION: &str = "Database MCP Server for PostgreSQL";
 const INSTRUCTIONS: &str = r"## Workflow
 
 1. Call `listDatabases` to discover available databases.
-2. Call `listTables` with a `database` to see its tables.
-3. Call `listViews` with a `database` to see its views in the `public` schema.
-4. Call `listTriggers` with a `database` to see its user-defined triggers in the `public` schema.
-5. Call `listFunctions` with a `database` to see its user-defined functions in the `public` schema.
-6. Call `listProcedures` with a `database` to see its user-defined procedures in the `public` schema.
-7. Call `listMaterializedViews` with a `database` to see its materialized views in the `public` schema.
-8. Call `getTableSchema` with `database` and `table` to inspect columns, types, and foreign keys before writing queries.
+2. Call `listTables` (optionally with a `database`; defaults to `--db-name`) to see its tables.
+3. Call `listViews` (optionally with a `database`; defaults to `--db-name`) to see its views in the `public` schema.
+4. Call `listTriggers` (optionally with a `database`; defaults to `--db-name`) to see its user-defined triggers in the `public` schema.
+5. Call `listFunctions` (optionally with a `database`; defaults to `--db-name`) to see its user-defined functions in the `public` schema.
+6. Call `listProcedures` (optionally with a `database`; defaults to `--db-name`) to see its user-defined procedures in the `public` schema.
+7. Call `listMaterializedViews` (optionally with a `database`; defaults to `--db-name`) to see its materialized views in the `public` schema.
+8. Call `getTableSchema` with `table` (and optionally `database`; defaults to `--db-name`) to inspect columns, types, and foreign keys before writing queries.
 9. Use `readQuery` for read-only SQL (SELECT, SHOW, EXPLAIN).
 10. Use `writeQuery` for data changes (INSERT, UPDATE, DELETE, CREATE, ALTER, DROP).
 11. Use `explainQuery` to analyze query execution plans and diagnose slow queries.

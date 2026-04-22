@@ -85,7 +85,7 @@ impl PostgresHandler {
     ///
     /// Returns [`SqlError`] if the query fails.
     pub async fn write_query(&self, QueryRequest { query, database }: QueryRequest) -> Result<QueryResponse, SqlError> {
-        let db = Some(database.trim()).filter(|s| !s.is_empty());
+        let db = database.as_deref().map(str::trim).filter(|s| !s.is_empty());
         if let Some(name) = &db {
             validate_ident(name)?;
         }
