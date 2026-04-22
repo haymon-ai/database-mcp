@@ -18,7 +18,7 @@ pub(crate) struct ExplainQueryTool;
 impl ExplainQueryTool {
     const NAME: &'static str = "explainQuery";
     const TITLE: &'static str = "Explain Query";
-    const DESCRIPTION: &'static str = r#"Return the execution plan for a SQL query to diagnose performance. Use this tool instead of running EXPLAIN directly through readQuery — it provides structured JSON output. Accepts an optional `database` to explain queries against a different database.
+    const DESCRIPTION: &'static str = r#"Return the execution plan for a SQL query to diagnose performance. Use this tool instead of running EXPLAIN directly through readQuery — it provides structured JSON output.
 
 <usecase>
 Use when:

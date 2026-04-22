@@ -17,7 +17,7 @@ pub(crate) struct ListViewsTool;
 impl ListViewsTool {
     const NAME: &'static str = "listViews";
     const TITLE: &'static str = "List Views";
-    const DESCRIPTION: &'static str = r#"List all views in a specific database. `database` is optional and defaults to the server's configured `--db-name`; call `listDatabases` to discover other databases.
+    const DESCRIPTION: &'static str = r#"List all views in a database.
 
 <usecase>
 Use when:

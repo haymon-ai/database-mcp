@@ -28,18 +28,20 @@ const DESCRIPTION: &str = "Database MCP Server for MySQL and MariaDB";
 const INSTRUCTIONS: &str = r"## Workflow
 
 1. Call `listDatabases` to discover available databases.
-2. Call `listTables` (optionally with a `database`; defaults to `--db-name`) to see its tables.
-3. Call `listViews` (optionally with a `database`; defaults to `--db-name`) to see its views.
-4. Call `listTriggers` (optionally with a `database`; defaults to `--db-name`) to see its triggers.
-5. Call `listFunctions` (optionally with a `database`; defaults to `--db-name`) to see its stored functions.
-6. Call `listProcedures` (optionally with a `database`; defaults to `--db-name`) to see its stored procedures.
-7. Call `getTableSchema` with `table` (and optionally `database`; defaults to `--db-name`) to inspect columns, types, and foreign keys before writing queries.
+2. Call `listTables` to see tables.
+3. Call `listViews` to see views.
+4. Call `listTriggers` to see triggers.
+5. Call `listFunctions` to see stored functions.
+6. Call `listProcedures` to see stored procedures.
+7. Call `getTableSchema` to inspect columns, types, and foreign keys before writing queries.
 8. Use `readQuery` for read-only SQL (SELECT, SHOW, DESCRIBE, USE, EXPLAIN).
 9. Use `writeQuery` for data changes (INSERT, UPDATE, DELETE, CREATE, ALTER, DROP).
 10. Use `explainQuery` to analyze query execution plans and diagnose slow queries.
 11. Use `createDatabase` to create a new database.
 12. Use `dropDatabase` to drop an existing database.
 13. Use `dropTable` to remove a table from a database.
+
+Per-database tools default to the active database; pass `database` to target another.
 
 ## Constraints
 

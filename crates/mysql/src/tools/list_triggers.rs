@@ -17,7 +17,7 @@ pub(crate) struct ListTriggersTool;
 impl ListTriggersTool {
     const NAME: &'static str = "listTriggers";
     const TITLE: &'static str = "List Triggers";
-    const DESCRIPTION: &'static str = r#"List all triggers in a specific database. `database` is optional and defaults to the server's configured `--db-name`; call `listDatabases` to discover other databases.
+    const DESCRIPTION: &'static str = r#"List all triggers in a database.
 
 <usecase>
 Use when:

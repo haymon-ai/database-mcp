@@ -29,13 +29,13 @@ const DESCRIPTION: &str = "Database MCP Server for PostgreSQL";
 const INSTRUCTIONS: &str = r"## Workflow
 
 1. Call `listDatabases` to discover available databases.
-2. Call `listTables` (optionally with a `database`; defaults to `--db-name`) to see its tables.
-3. Call `listViews` (optionally with a `database`; defaults to `--db-name`) to see its views in the `public` schema.
-4. Call `listTriggers` (optionally with a `database`; defaults to `--db-name`) to see its user-defined triggers in the `public` schema.
-5. Call `listFunctions` (optionally with a `database`; defaults to `--db-name`) to see its user-defined functions in the `public` schema.
-6. Call `listProcedures` (optionally with a `database`; defaults to `--db-name`) to see its user-defined procedures in the `public` schema.
-7. Call `listMaterializedViews` (optionally with a `database`; defaults to `--db-name`) to see its materialized views in the `public` schema.
-8. Call `getTableSchema` with `table` (and optionally `database`; defaults to `--db-name`) to inspect columns, types, and foreign keys before writing queries.
+2. Call `listTables` to see tables.
+3. Call `listViews` to see views in the `public` schema.
+4. Call `listTriggers` to see user-defined triggers in the `public` schema.
+5. Call `listFunctions` to see user-defined functions in the `public` schema.
+6. Call `listProcedures` to see user-defined procedures in the `public` schema.
+7. Call `listMaterializedViews` to see materialized views in the `public` schema.
+8. Call `getTableSchema` to inspect columns, types, and foreign keys before writing queries.
 9. Use `readQuery` for read-only SQL (SELECT, SHOW, EXPLAIN).
 10. Use `writeQuery` for data changes (INSERT, UPDATE, DELETE, CREATE, ALTER, DROP).
 11. Use `explainQuery` to analyze query execution plans and diagnose slow queries.
@@ -43,7 +43,7 @@ const INSTRUCTIONS: &str = r"## Workflow
 13. Use `dropDatabase` to drop an existing database.
 14. Use `dropTable` to remove a table from a database (supports `cascade` for foreign key dependencies).
 
-Tools accept an optional `database` parameter to query across databases without reconnecting.
+Per-database tools default to the active database; pass `database` to target another.
 
 ## Constraints
 

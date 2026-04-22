@@ -20,7 +20,7 @@ pub(crate) struct GetTableSchemaTool;
 impl GetTableSchemaTool {
     const NAME: &'static str = "getTableSchema";
     const TITLE: &'static str = "Get Table Schema";
-    const DESCRIPTION: &'static str = r#"Get column definitions and foreign key relationships for a table. `database` is optional (defaults to `--db-name`); `table` is required. Call `listDatabases` and `listTables` to discover options.
+    const DESCRIPTION: &'static str = r#"Get column definitions and foreign key relationships for a table.
 
 <usecase>
 ALWAYS call this before writing queries to understand:

@@ -17,7 +17,7 @@ pub(crate) struct ListTablesTool;
 impl ListTablesTool {
     const NAME: &'static str = "listTables";
     const TITLE: &'static str = "List Tables";
-    const DESCRIPTION: &'static str = r#"List all tables in a specific database. `database` is optional and defaults to the server's configured `--db-name`; call `listDatabases` to discover other databases.
+    const DESCRIPTION: &'static str = r#"List all tables in a database.
 
 <usecase>
 Use when:

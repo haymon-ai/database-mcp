@@ -1,5 +1,6 @@
 ---
 source: tests/approval/mysql.rs
+assertion_line: 42
 expression: tools
 ---
 [
@@ -95,7 +96,7 @@ expression: tools
       "properties": {
         "database": {
           "default": null,
-          "description": "Database containing the table. Optional; defaults to the server's configured `--db-name` when omitted. Use `listDatabases` to discover other databases.",
+          "description": "Database containing the table. Defaults to the active database.",
           "type": [
             "string",
             "null"
@@ -149,7 +150,7 @@ expression: tools
         },
         "database": {
           "default": null,
-          "description": "Database to explain against. Optional; defaults to the server's configured `--db-name` when omitted.",
+          "description": "Database to explain against. Defaults to the active database.",
           "type": [
             "string",
             "null"
@@ -192,21 +193,21 @@ expression: tools
   {
     "name": "getTableSchema",
     "title": "Get Table Schema",
-    "description": "Get column definitions and foreign key relationships for a table. `database` is optional (defaults to `--db-name`); `table` is required. Call `listDatabases` and `listTables` to discover options.\n\n<usecase>\nALWAYS call this before writing queries to understand:\n- Column names and data types\n- Which columns are nullable, primary keys, or have defaults\n- Foreign key relationships for writing JOINs\n</usecase>\n\n<examples>\n✓ \"What columns does the orders table have?\" → getTableSchema(database=\"mydb\", table=\"orders\")\n✓ Before writing a SELECT → getTableSchema first to confirm column names\n✓ \"How are users and orders related?\" → check foreign keys in both tables\n</examples>\n\n<what_it_returns>\nA JSON object with table and columns keyed by column name, each containing type, nullable, key, default, and foreignKey info.\n</what_it_returns>",
+    "description": "Get column definitions and foreign key relationships for a table.\n\n<usecase>\nALWAYS call this before writing queries to understand:\n- Column names and data types\n- Which columns are nullable, primary keys, or have defaults\n- Foreign key relationships for writing JOINs\n</usecase>\n\n<examples>\n✓ \"What columns does the orders table have?\" → getTableSchema(database=\"mydb\", table=\"orders\")\n✓ Before writing a SELECT → getTableSchema first to confirm column names\n✓ \"How are users and orders related?\" → check foreign keys in both tables\n</examples>\n\n<what_it_returns>\nA JSON object with table and columns keyed by column name, each containing type, nullable, key, default, and foreignKey info.\n</what_it_returns>",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "description": "Request for the `getTableSchema` tool.",
       "properties": {
         "database": {
           "default": null,
-          "description": "Database containing the table. Optional; defaults to the server's configured `--db-name` when omitted. Use `listDatabases` to discover other databases.",
+          "description": "Database containing the table. Defaults to the active database.",
           "type": [
             "string",
             "null"
           ]
         },
         "table": {
-          "description": "The table name to inspect. Use `listTables` first to see available tables in the database.",
+          "description": "Table to inspect.",
           "type": "string"
         }
       },
@@ -312,7 +313,7 @@ expression: tools
         },
         "database": {
           "default": null,
-          "description": "Database to list functions from. Optional; defaults to the server's configured `--db-name` when omitted. Use `listDatabases` to discover other databases.",
+          "description": "Database to list functions from. Defaults to the active database.",
           "type": [
             "string",
             "null"
@@ -372,7 +373,7 @@ expression: tools
         },
         "database": {
           "default": null,
-          "description": "Database to list procedures from. Optional; defaults to the server's configured `--db-name` when omitted. Use `listDatabases` to discover other databases.",
+          "description": "Database to list procedures from. Defaults to the active database.",
           "type": [
             "string",
             "null"
@@ -417,7 +418,7 @@ expression: tools
   {
     "name": "listTables",
     "title": "List Tables",
-    "description": "List all tables in a specific database. `database` is optional and defaults to the server's configured `--db-name`; call `listDatabases` to discover other databases.\n\n<usecase>\nUse when:\n- Exploring a database to find relevant tables\n- Verifying a table exists before querying or inspecting it\n- The user asks what tables are in a database\n</usecase>\n\n<examples>\n✓ \"What tables are in the mydb database?\" → listTables(database=\"mydb\")\n✓ \"Does a users table exist?\" → listTables to check\n✗ \"Show me the columns of users\" → use getTableSchema instead\n</examples>\n\n<what_it_returns>\nA sorted JSON array of table name strings.\n</what_it_returns>\n\n<pagination>\nPaginated. Pass the prior response's `nextCursor` as `cursor` to fetch the next page.\n</pagination>",
+    "description": "List all tables in a database.\n\n<usecase>\nUse when:\n- Exploring a database to find relevant tables\n- Verifying a table exists before querying or inspecting it\n- The user asks what tables are in a database\n</usecase>\n\n<examples>\n✓ \"What tables are in the mydb database?\" → listTables(database=\"mydb\")\n✓ \"Does a users table exist?\" → listTables to check\n✗ \"Show me the columns of users\" → use getTableSchema instead\n</examples>\n\n<what_it_returns>\nA sorted JSON array of table name strings.\n</what_it_returns>\n\n<pagination>\nPaginated. Pass the prior response's `nextCursor` as `cursor` to fetch the next page.\n</pagination>",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "description": "Request for the `listTables` tool.",
@@ -432,7 +433,7 @@ expression: tools
         },
         "database": {
           "default": null,
-          "description": "Database to list tables from. Optional; defaults to the server's configured `--db-name` when omitted. Use `listDatabases` to discover other databases.",
+          "description": "Database to list tables from. Defaults to the active database.",
           "type": [
             "string",
             "null"
@@ -477,7 +478,7 @@ expression: tools
   {
     "name": "listTriggers",
     "title": "List Triggers",
-    "description": "List all triggers in a specific database. `database` is optional and defaults to the server's configured `--db-name`; call `listDatabases` to discover other databases.\n\n<usecase>\nUse when:\n- Investigating side-effects on INSERT/UPDATE/DELETE for a table\n- Auditing trigger coverage across a database\n- The user asks what triggers fire in a database\n</usecase>\n\n<examples>\n✓ \"What triggers are in the mydb database?\" → listTriggers(database=\"mydb\")\n✓ \"Does an order-audit trigger exist?\" → listTriggers to check\n✗ \"Show me a trigger's body\" → use readQuery against information_schema.TRIGGERS\n</examples>\n\n<what_it_returns>\nA sorted JSON array of trigger name strings.\n</what_it_returns>\n\n<pagination>\nPaginated. Pass the prior response's `nextCursor` as `cursor` to fetch the next page.\n</pagination>",
+    "description": "List all triggers in a database.\n\n<usecase>\nUse when:\n- Investigating side-effects on INSERT/UPDATE/DELETE for a table\n- Auditing trigger coverage across a database\n- The user asks what triggers fire in a database\n</usecase>\n\n<examples>\n✓ \"What triggers are in the mydb database?\" → listTriggers(database=\"mydb\")\n✓ \"Does an order-audit trigger exist?\" → listTriggers to check\n✗ \"Show me a trigger's body\" → use readQuery against information_schema.TRIGGERS\n</examples>\n\n<what_it_returns>\nA sorted JSON array of trigger name strings.\n</what_it_returns>\n\n<pagination>\nPaginated. Pass the prior response's `nextCursor` as `cursor` to fetch the next page.\n</pagination>",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "description": "Request for the `listTriggers` tool.",
@@ -492,7 +493,7 @@ expression: tools
         },
         "database": {
           "default": null,
-          "description": "Database to list triggers from. Optional; defaults to the server's configured `--db-name` when omitted. Use `listDatabases` to discover other databases.",
+          "description": "Database to list triggers from. Defaults to the active database.",
           "type": [
             "string",
             "null"
@@ -537,7 +538,7 @@ expression: tools
   {
     "name": "listViews",
     "title": "List Views",
-    "description": "List all views in a specific database. `database` is optional and defaults to the server's configured `--db-name`; call `listDatabases` to discover other databases.\n\n<usecase>\nUse when:\n- Exploring a database to find defined views alongside tables\n- Verifying a view exists before querying it\n- The user asks what views are in a database\n</usecase>\n\n<examples>\n✓ \"What views are in the mydb database?\" → listViews(database=\"mydb\")\n✓ \"Does an active_users view exist?\" → listViews to check\n✗ \"Show me the columns of a view\" → use getTableSchema instead\n✗ \"List materialized views\" → use listMaterializedViews (PostgreSQL only)\n</examples>\n\n<what_it_returns>\nA sorted JSON array of view name strings.\n</what_it_returns>\n\n<pagination>\nPaginated. Pass the prior response's `nextCursor` as `cursor` to fetch the next page.\n</pagination>",
+    "description": "List all views in a database.\n\n<usecase>\nUse when:\n- Exploring a database to find defined views alongside tables\n- Verifying a view exists before querying it\n- The user asks what views are in a database\n</usecase>\n\n<examples>\n✓ \"What views are in the mydb database?\" → listViews(database=\"mydb\")\n✓ \"Does an active_users view exist?\" → listViews to check\n✗ \"Show me the columns of a view\" → use getTableSchema instead\n✗ \"List materialized views\" → use listMaterializedViews (PostgreSQL only)\n</examples>\n\n<what_it_returns>\nA sorted JSON array of view name strings.\n</what_it_returns>\n\n<pagination>\nPaginated. Pass the prior response's `nextCursor` as `cursor` to fetch the next page.\n</pagination>",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "description": "Request for the `listViews` tool.",
@@ -552,7 +553,7 @@ expression: tools
         },
         "database": {
           "default": null,
-          "description": "Database to list views from. Optional; defaults to the server's configured `--db-name` when omitted. Use `listDatabases` to discover other databases.",
+          "description": "Database to list views from. Defaults to the active database.",
           "type": [
             "string",
             "null"
@@ -612,7 +613,7 @@ expression: tools
         },
         "database": {
           "default": null,
-          "description": "Database to run the query against. Optional; defaults to the server's configured `--db-name` when omitted.",
+          "description": "Database to run the query against. Defaults to the active database.",
           "type": [
             "string",
             "null"
@@ -669,7 +670,7 @@ expression: tools
       "properties": {
         "database": {
           "default": null,
-          "description": "Database to run the query against. Optional; defaults to the server's configured `--db-name` when omitted.",
+          "description": "Database to run the query against. Defaults to the active database.",
           "type": [
             "string",
             "null"

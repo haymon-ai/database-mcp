@@ -57,7 +57,7 @@ pub struct DropDatabaseRequest {
 #[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ListTablesRequest {
-    /// Database to list tables from. Optional; defaults to the server's configured `--db-name` when omitted. Use `listDatabases` to discover other databases.
+    /// Database to list tables from. Defaults to the active database.
     #[serde(default)]
     pub database: Option<String>,
     /// Opaque cursor from a prior response's `nextCursor`; omit for the first page.
@@ -80,7 +80,7 @@ pub struct ListTablesResponse {
 #[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ListViewsRequest {
-    /// Database to list views from. Optional; defaults to the server's configured `--db-name` when omitted. Use `listDatabases` to discover other databases.
+    /// Database to list views from. Defaults to the active database.
     #[serde(default)]
     pub database: Option<String>,
     /// Opaque cursor from a prior response's `nextCursor`; omit for the first page.
@@ -103,7 +103,7 @@ pub struct ListViewsResponse {
 #[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ListTriggersRequest {
-    /// Database to list triggers from. Optional; defaults to the server's configured `--db-name` when omitted. Use `listDatabases` to discover other databases.
+    /// Database to list triggers from. Defaults to the active database.
     #[serde(default)]
     pub database: Option<String>,
     /// Opaque cursor from a prior response's `nextCursor`; omit for the first page.
@@ -126,7 +126,7 @@ pub struct ListTriggersResponse {
 #[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ListFunctionsRequest {
-    /// Database to list functions from. Optional; defaults to the server's configured `--db-name` when omitted. Use `listDatabases` to discover other databases.
+    /// Database to list functions from. Defaults to the active database.
     #[serde(default)]
     pub database: Option<String>,
     /// Opaque cursor from a prior response's `nextCursor`; omit for the first page.
@@ -149,7 +149,7 @@ pub struct ListFunctionsResponse {
 #[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ListProceduresRequest {
-    /// Database to list procedures from. Optional; defaults to the server's configured `--db-name` when omitted. Use `listDatabases` to discover other databases.
+    /// Database to list procedures from. Defaults to the active database.
     #[serde(default)]
     pub database: Option<String>,
     /// Opaque cursor from a prior response's `nextCursor`; omit for the first page.
@@ -172,7 +172,7 @@ pub struct ListProceduresResponse {
 #[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ListMaterializedViewsRequest {
-    /// Database to list materialized views from. Optional; defaults to the server's configured `--db-name` when omitted. Use `listDatabases` to discover other databases.
+    /// Database to list materialized views from. Defaults to the active database.
     #[serde(default)]
     pub database: Option<String>,
     /// Opaque cursor from a prior response's `nextCursor`; omit for the first page.
@@ -195,10 +195,10 @@ pub struct ListMaterializedViewsResponse {
 #[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct GetTableSchemaRequest {
-    /// Database containing the table. Optional; defaults to the server's configured `--db-name` when omitted. Use `listDatabases` to discover other databases.
+    /// Database containing the table. Defaults to the active database.
     #[serde(default)]
     pub database: Option<String>,
-    /// The table name to inspect. Use `listTables` first to see available tables in the database.
+    /// Table to inspect.
     pub table: String,
 }
 
@@ -218,7 +218,7 @@ pub struct TableSchemaResponse {
 pub struct QueryRequest {
     /// The SQL query to execute.
     pub query: String,
-    /// Database to run the query against. Optional; defaults to the server's configured `--db-name` when omitted.
+    /// Database to run the query against. Defaults to the active database.
     #[serde(default)]
     pub database: Option<String>,
 }
@@ -229,7 +229,7 @@ pub struct QueryRequest {
 pub struct ReadQueryRequest {
     /// The SQL query to execute.
     pub query: String,
-    /// Database to run the query against. Optional; defaults to the server's configured `--db-name` when omitted.
+    /// Database to run the query against. Defaults to the active database.
     #[serde(default)]
     pub database: Option<String>,
     /// Opaque cursor from a prior response's `nextCursor`; omit for the first page.
@@ -262,7 +262,7 @@ pub struct ReadQueryResponse {
 #[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ExplainQueryRequest {
-    /// Database to explain against. Optional; defaults to the server's configured `--db-name` when omitted.
+    /// Database to explain against. Defaults to the active database.
     #[serde(default)]
     pub database: Option<String>,
     /// The SQL query to explain.

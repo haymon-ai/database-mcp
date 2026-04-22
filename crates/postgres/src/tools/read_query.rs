@@ -21,7 +21,7 @@ pub(crate) struct ReadQueryTool;
 impl ReadQueryTool {
     const NAME: &'static str = "readQuery";
     const TITLE: &'static str = "Read Query";
-    const DESCRIPTION: &'static str = r#"Execute a read-only SQL query. Allowed statements: SELECT, SHOW, EXPLAIN. Accepts an optional `database` to query across databases without reconnecting.
+    const DESCRIPTION: &'static str = r#"Execute a read-only SQL query. Allowed statements: SELECT, SHOW, EXPLAIN.
 
 <usecase>
 Use when:

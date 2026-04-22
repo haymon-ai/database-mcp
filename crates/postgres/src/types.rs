@@ -11,7 +11,7 @@ use serde::Deserialize;
 #[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DropTableRequest {
-    /// Database containing the table. Optional; defaults to the server's configured `--db-name` when omitted. Use `listDatabases` to discover other databases.
+    /// Database containing the table. Defaults to the active database.
     #[serde(default)]
     pub database: Option<String>,
     /// Name of the table to drop. Must contain only alphanumeric characters and underscores.
