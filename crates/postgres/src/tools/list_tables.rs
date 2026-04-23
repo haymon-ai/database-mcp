@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 
-use dbmcp_server::pagination::{Cursor, Pager};
+use dbmcp_server::pagination::Pager;
 use dbmcp_sql::Connection;
 use dbmcp_sql::sanitize::validate_ident;
 
@@ -269,31 +269,24 @@ impl PostgresHandler {
         let pager = Pager::new(cursor, self.config.page_size);
         let pattern = search.as_deref().map(str::trim).filter(|s| !s.is_empty());
 
-        if !detailed {
-            let rows: Vec<String> = self
-                .connection
-                .fetch_scalar(
-                    sqlx::query(BRIEF_SQL)
-                        .bind(pattern)
-                        .bind(pager.limit())
-                        .bind(pager.offset()),
-                    database,
-                )
-                .await?;
-            let (tables, next_cursor) = pager.finalize(rows);
-            return Ok(ListTablesResponse {
-                tables: TableEntries::Brief(tables),
-                next_cursor,
-            });
+        if detailed {
+            return self.list_tables_detailed(database, pattern, pager).await;
         }
+        
+        self.list_tables_brief(database, pattern, pager).await
+    }
 
+    /// Detailed-mode page: unwraps each CTE row's `entry` object.
+    async fn list_tables_detailed(
+        &self,
+        database: Option<&str>,
+        pattern: Option<&str>,
+        pager: Pager,
+    ) -> Result<ListTablesResponse, ErrorData> {
         let rows = self
             .connection
             .fetch_json(
-                sqlx::query(DETAILED_SQL)
-                    .bind(pattern)
-                    .bind(pager.limit())
-                    .bind(pager.offset()),
+                sqlx::query(DETAILED_SQL).bind(pattern).bind(pager.limit()).bind(pager.offset()),
                 database,
             )
             .await?;
@@ -304,15 +297,31 @@ impl PostgresHandler {
             .into_iter()
             .filter_map(|mut v| v.as_object_mut().and_then(|obj| obj.remove("entry")).or(Some(v)))
             .collect();
-        let (entries, next_cursor) = finalize_detailed(&pager, entries);
+        let (entries, next_cursor) = pager.finalize(entries);
         Ok(ListTablesResponse {
             tables: TableEntries::Detailed(entries),
             next_cursor,
         })
     }
-}
 
-/// Mirrors [`Pager::finalize`] for an owned `Vec<Value>` without cloning the trait bound.
-fn finalize_detailed(pager: &Pager, mut items: Vec<serde_json::Value>) -> (Vec<serde_json::Value>, Option<Cursor>) {
-    pager.finalize(std::mem::take(&mut items))
+    /// Brief-mode page: collects table-name strings into [`TableEntries::Brief`].
+    async fn list_tables_brief(
+        &self,
+        database: Option<&str>,
+        pattern: Option<&str>,
+        pager: Pager,
+    ) -> Result<ListTablesResponse, ErrorData> {
+        let rows: Vec<String> = self
+            .connection
+            .fetch_scalar(
+                sqlx::query(BRIEF_SQL).bind(pattern).bind(pager.limit()).bind(pager.offset()),
+                database,
+            )
+            .await?;
+        let (tables, next_cursor) = pager.finalize(rows);
+        Ok(ListTablesResponse {
+            tables: TableEntries::Brief(tables),
+            next_cursor,
+        })
+    }
 }
