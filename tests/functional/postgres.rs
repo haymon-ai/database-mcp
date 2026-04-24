@@ -1864,10 +1864,6 @@ async fn test_list_materialized_views_empty_for_empty_database() {
     );
 }
 
-// =====================================================================
-// Phase 3 — User Story 1: search filter on listTables
-// =====================================================================
-
 /// Returns a cloned Vec<String> of matched table names for a given search term.
 async fn search_names(handler: &PostgresHandler, search: &str) -> Vec<String> {
     let request = ListTablesRequest {
@@ -1980,10 +1976,6 @@ async fn test_list_tables_search_paginates_filtered_results() {
         "filter must hold across pages"
     );
 }
-
-// =====================================================================
-// Phase 4 — User Story 2: detailed mode
-// =====================================================================
 
 /// Returns the keyed detailed-mode map (table name → metadata) for a search term.
 async fn detailed_entries(handler: &PostgresHandler, search: &str) -> IndexMap<String, Value> {
