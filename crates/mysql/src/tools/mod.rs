@@ -6,6 +6,7 @@
 //! Router assembly happens in [`crate::handler`].
 
 mod create_database;
+mod definer_sql;
 mod drop_database;
 mod drop_table;
 mod explain_query;

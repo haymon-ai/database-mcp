@@ -9,6 +9,7 @@ use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};
 
 use crate::MysqlHandler;
+use crate::tools::definer_sql::definer_canonical_sql;
 use crate::types::{ListEntries, ListTablesRequest, ListTablesResponse};
 
 /// Brief-mode SQL: `information_schema.TABLES` filtered to `BASE TABLE` rows.
@@ -38,7 +39,11 @@ const BRIEF_SQL: &str = r"
 /// text columns are `VARBINARY`-typed), so column names are wrapped via plain
 /// `CONCAT('"', x, '"')` — safe because identifiers cannot contain `"` or `\`.
 /// JSON booleans are produced via `JSON_EXTRACT(IF(cond, 'true', 'false'), '$')`.
-const DETAILED_SQL: &str = r#"
+/// The `triggers_info` CTE renders `DEFINER` in canonical
+/// `` DEFINER=`<user>`@`<host>` `` form via [`definer_canonical_sql`] so the
+/// reconstructed `CREATE TRIGGER` text round-trips byte-identically with
+/// `SHOW CREATE TRIGGER`.
+const DETAILED_SQL_TEMPLATE: &str = r#"
 WITH table_info AS (
     SELECT
         t.TABLE_SCHEMA AS table_schema,
@@ -189,7 +194,7 @@ triggers_info AS (
         tr.EVENT_OBJECT_TABLE  AS TABLE_NAME,
         tr.TRIGGER_NAME        AS trigger_name,
         CONCAT(
-            'CREATE DEFINER=', QUOTE(tr.DEFINER),
+            'CREATE ', {DEFINER_CANONICAL},
             ' TRIGGER ', '`', REPLACE(tr.TRIGGER_NAME, '`', '``'), '`',
             ' ', tr.ACTION_TIMING, ' ', tr.EVENT_MANIPULATION,
             ' ON ',
@@ -380,10 +385,12 @@ impl MysqlHandler {
         let pager = Pager::new(cursor, self.config.page_size);
 
         if detailed {
+            let detailed_sql =
+                DETAILED_SQL_TEMPLATE.replace("{DEFINER_CANONICAL}", &definer_canonical_sql("tr.DEFINER"));
             let rows: Vec<(String, sqlx::types::Json<serde_json::Value>)> = self
                 .connection
                 .fetch(
-                    sqlx::query(DETAILED_SQL)
+                    sqlx::query(&detailed_sql)
                         .bind(&database)
                         .bind(pattern)
                         .bind(pattern)

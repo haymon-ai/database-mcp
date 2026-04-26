@@ -146,6 +146,15 @@ pub struct ListTriggersRequest {
     /// Opaque cursor from a prior response's `nextCursor`; omit for the first page.
     #[serde(default)]
     pub cursor: Option<Cursor>,
+    /// Optional case-insensitive filter on trigger names. The input is used within a `LIKE`
+    /// clause: `%` matches any sequence of characters and `_` matches any single character.
+    #[serde(default)]
+    pub search: Option<String>,
+    /// When `true`, each returned entry is a full metadata object (schema, table, timing,
+    /// events, activationLevel, definition, plus backend-specific fields); when `false` or
+    /// omitted, each entry is the bare trigger-name string.
+    #[serde(default)]
+    pub detailed: bool,
 }
 
 /// Response for the `listTriggers` tool.
@@ -290,8 +299,22 @@ pub struct ExplainQueryRequest {
 
 #[cfg(test)]
 mod tests {
-    use super::{IndexMap, ListEntries, ListTablesResponse, ListTriggersResponse};
+    use super::{IndexMap, ListEntries, ListTablesResponse, ListTriggersRequest, ListTriggersResponse};
     use serde_json::{Value, json};
+
+    #[test]
+    fn list_triggers_request_defaults_to_brief_mode_without_search() {
+        let req: ListTriggersRequest = serde_json::from_str("{}").expect("empty object should parse");
+        assert!(req.search.is_none());
+        assert!(!req.detailed, "detailed must default to false");
+    }
+
+    #[test]
+    fn list_triggers_request_accepts_search_and_detailed() {
+        let req: ListTriggersRequest = serde_json::from_str(r#"{"search": "audit", "detailed": true}"#).expect("parse");
+        assert_eq!(req.search.as_deref(), Some("audit"));
+        assert!(req.detailed);
+    }
 
     #[test]
     fn brief_serializes_as_bare_string_array() {
