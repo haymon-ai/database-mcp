@@ -4,7 +4,7 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use dbmcp_server::pagination::Pager;
-use dbmcp_server::types::{ListTriggersResponse, TriggerEntries};
+use dbmcp_server::types::{ListEntries, ListTriggersResponse};
 
 use dbmcp_sql::Connection as _;
 use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
@@ -107,7 +107,7 @@ impl SqliteHandler {
         let rows: Vec<String> = self.connection.fetch_scalar(query.as_str(), None).await?;
         let (triggers, next_cursor) = pager.finalize(rows);
         Ok(ListTriggersResponse {
-            triggers: TriggerEntries::Brief(triggers),
+            triggers: ListEntries::Brief(triggers),
             next_cursor,
         })
     }

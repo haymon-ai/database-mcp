@@ -10,7 +10,7 @@
 
 use dbmcp_config::{DatabaseBackend, DatabaseConfig};
 use dbmcp_mysql::MysqlHandler;
-use dbmcp_mysql::types::{DropTableRequest, ListTablesRequest, TableEntries};
+use dbmcp_mysql::types::{DropTableRequest, ListEntries, ListTablesRequest};
 use dbmcp_server::types::{
     CreateDatabaseRequest, DropDatabaseRequest, ExplainQueryRequest, ListDatabasesRequest, ListFunctionsRequest,
     ListProceduresRequest, ListTriggersRequest, ListViewsRequest, QueryRequest, ReadQueryRequest,
@@ -156,7 +156,7 @@ async fn test_lists_tables() {
     };
 
     let response = handler.list_tables(request).await.unwrap();
-    let TableEntries::Brief(tables) = response.tables else {
+    let ListEntries::Brief(tables) = response.tables else {
         panic!("expected brief-mode tables");
     };
 
@@ -286,7 +286,7 @@ async fn test_lists_tables_cross_database() {
     };
 
     let response = handler.list_tables(request).await.unwrap();
-    let TableEntries::Brief(tables) = response.tables else {
+    let ListEntries::Brief(tables) = response.tables else {
         panic!("expected brief-mode tables");
     };
 
@@ -352,7 +352,7 @@ async fn test_uses_default_pool_for_matching_database() {
     };
 
     let response = handler.list_tables(request).await.unwrap();
-    let TableEntries::Brief(tables) = response.tables else {
+    let ListEntries::Brief(tables) = response.tables else {
         panic!("expected brief-mode tables");
     };
 
@@ -434,7 +434,7 @@ async fn test_drop_table_success() {
         ..Default::default()
     };
     let response = handler.list_tables(tables_request).await.unwrap();
-    let TableEntries::Brief(tables) = response.tables else {
+    let ListEntries::Brief(tables) = response.tables else {
         panic!("expected brief-mode tables");
     };
     assert!(

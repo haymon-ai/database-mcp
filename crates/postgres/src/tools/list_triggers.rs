@@ -8,7 +8,7 @@ use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};
 
 use crate::PostgresHandler;
-use crate::types::{ListTriggersRequest, ListTriggersResponse, TriggerEntries};
+use crate::types::{ListEntries, ListTriggersRequest, ListTriggersResponse};
 
 /// Marker type for the `listTriggers` MCP tool.
 pub(crate) struct ListTriggersTool;
@@ -84,74 +84,62 @@ impl AsyncTool<PostgresHandler> for ListTriggersTool {
 }
 
 /// Brief-mode SQL: `pg_trigger` join with optional `ILIKE` filter on trigger name.
+///
+/// `'public'::regnamespace` casts the schema name to a `pg_namespace.oid`
+/// at plan time, replacing what would otherwise be a `pg_namespace` join.
 const BRIEF_SQL: &str = r"
     SELECT t.tgname
     FROM pg_trigger t
     JOIN pg_class c ON t.tgrelid = c.oid
-    JOIN pg_namespace n ON c.relnamespace = n.oid
-    WHERE n.nspname = 'public'
+    WHERE c.relnamespace = 'public'::regnamespace
       AND NOT t.tgisinternal
       AND ($1::text IS NULL OR t.tgname ILIKE '%' || $1 || '%')
     ORDER BY t.tgname
     LIMIT $2 OFFSET $3";
 
-/// Detailed-mode SQL: single CTE returning one `json_build_object` per trigger.
+/// Detailed-mode SQL: per-trigger `json_build_object` projection.
 ///
-/// `LIMIT`/`OFFSET` are pushed into `trigger_page` so downstream evaluation
-/// (function lookup, definition formatting, events array) only runs for
-/// the at-most `page_size + 1` triggers actually on this page.
+/// `'public'::regnamespace` casts the schema name to a `pg_namespace.oid`
+/// at plan time, eliminating the otherwise-needed `pg_namespace` join.
+/// `schema` is hard-coded `'public'` in the output since the WHERE filter
+/// already pins it to that one namespace. Postgres defers SELECT-list
+/// evaluation past `LIMIT`, so `pg_get_triggerdef` and the events array
+/// only run for the page's rows.
 const DETAILED_SQL: &str = r"
-    WITH trigger_page AS (
-        SELECT
-            t.oid          AS trigger_oid,
-            n.nspname      AS schema_name,
-            c.relname      AS table_name,
-            t.tgname       AS trigger_name,
-            t.tgenabled    AS enabled_code,
-            t.tgtype::int  AS type_bits,
-            t.tgfoid       AS function_oid
-        FROM pg_trigger t
-        JOIN pg_class c     ON t.tgrelid = c.oid
-        JOIN pg_namespace n ON c.relnamespace = n.oid
-        WHERE NOT t.tgisinternal
-          AND n.nspname = 'public'
-          AND ($1::text IS NULL OR t.tgname ILIKE '%' || $1 || '%')
-        ORDER BY t.tgname, c.relname, n.nspname
-        LIMIT $2 OFFSET $3
-    )
     SELECT
-        tp.trigger_name AS name,
+        t.tgname AS name,
         json_build_object(
-            'schema',          tp.schema_name,
-            'table',           tp.table_name,
-            'status',          CASE tp.enabled_code
+            'schema',          'public',
+            'table',           c.relname,
+            'status',          CASE t.tgenabled
                                    WHEN 'O' THEN 'ENABLED'
                                    WHEN 'D' THEN 'DISABLED'
                                    WHEN 'R' THEN 'REPLICA'
                                    WHEN 'A' THEN 'ALWAYS'
                                END,
             'timing',          CASE
-                                   WHEN (tp.type_bits & 2)  = 2  THEN 'BEFORE'
-                                   WHEN (tp.type_bits & 64) = 64 THEN 'INSTEAD OF'
+                                   WHEN (t.tgtype & 2)  = 2  THEN 'BEFORE'
+                                   WHEN (t.tgtype & 64) = 64 THEN 'INSTEAD OF'
                                    ELSE 'AFTER'
                                END,
-            'events',          (
-                SELECT COALESCE(json_agg(e.ev ORDER BY e.ord), '[]'::json)
-                FROM (VALUES
-                    ('INSERT'::text,   1, 4),
-                    ('UPDATE'::text,   2, 16),
-                    ('DELETE'::text,   3, 8),
-                    ('TRUNCATE'::text, 4, 32)
-                ) AS e(ev, ord, mask)
-                WHERE (tp.type_bits & e.mask) = e.mask
-            ),
-            'activationLevel', CASE WHEN (tp.type_bits & 1) = 1 THEN 'ROW' ELSE 'STATEMENT' END,
+            'events',          to_json(array_remove(ARRAY[
+                                   CASE WHEN (t.tgtype & 4)  = 4  THEN 'INSERT'   END,
+                                   CASE WHEN (t.tgtype & 16) = 16 THEN 'UPDATE'   END,
+                                   CASE WHEN (t.tgtype & 8)  = 8  THEN 'DELETE'   END,
+                                   CASE WHEN (t.tgtype & 32) = 32 THEN 'TRUNCATE' END
+                               ], NULL)),
+            'activationLevel', CASE WHEN (t.tgtype & 1) = 1 THEN 'ROW' ELSE 'STATEMENT' END,
             'functionName',    p.proname,
-            'definition',      pg_get_triggerdef(tp.trigger_oid)
+            'definition',      pg_get_triggerdef(t.oid)
         ) AS entry
-    FROM trigger_page tp
-    LEFT JOIN pg_proc p ON p.oid = tp.function_oid
-    ORDER BY tp.trigger_name, tp.table_name, tp.schema_name";
+    FROM pg_trigger t
+    JOIN pg_class c ON t.tgrelid = c.oid
+    LEFT JOIN pg_proc p ON p.oid = t.tgfoid
+    WHERE c.relnamespace = 'public'::regnamespace
+      AND NOT t.tgisinternal
+      AND ($1::text IS NULL OR t.tgname ILIKE '%' || $1 || '%')
+    ORDER BY t.tgname, c.relname
+    LIMIT $2 OFFSET $3";
 
 impl PostgresHandler {
     /// Lists one page of user-defined triggers, optionally filtered and/or detailed.
@@ -171,62 +159,41 @@ impl PostgresHandler {
         }: ListTriggersRequest,
     ) -> Result<ListTriggersResponse, ErrorData> {
         let database = database.as_deref().map(str::trim).filter(|s| !s.is_empty());
-
-        let pager = Pager::new(cursor, self.config.page_size);
         let pattern = search.as_deref().map(str::trim).filter(|s| !s.is_empty());
+        let pager = Pager::new(cursor, self.config.page_size);
 
         if detailed {
-            return self.list_triggers_detailed(database, pattern, pager).await;
+            let rows: Vec<(String, sqlx::types::Json<serde_json::Value>)> = self
+                .connection
+                .fetch(
+                    sqlx::query(DETAILED_SQL)
+                        .bind(pattern)
+                        .bind(pager.limit())
+                        .bind(pager.offset()),
+                    database,
+                )
+                .await?;
+            let (rows, next_cursor) = pager.finalize(rows);
+            Ok(ListTriggersResponse {
+                triggers: ListEntries::Detailed(rows.into_iter().map(|(name, json)| (name, json.0)).collect()),
+                next_cursor,
+            })
+        } else {
+            let rows: Vec<String> = self
+                .connection
+                .fetch_scalar(
+                    sqlx::query(BRIEF_SQL)
+                        .bind(pattern)
+                        .bind(pager.limit())
+                        .bind(pager.offset()),
+                    database,
+                )
+                .await?;
+            let (triggers, next_cursor) = pager.finalize(rows);
+            Ok(ListTriggersResponse {
+                triggers: ListEntries::Brief(triggers),
+                next_cursor,
+            })
         }
-
-        self.list_triggers_brief(database, pattern, pager).await
-    }
-
-    /// Brief-mode page: sorted trigger-name strings wrapped as [`TriggerEntries::Brief`].
-    async fn list_triggers_brief(
-        &self,
-        database: Option<&str>,
-        pattern: Option<&str>,
-        pager: Pager,
-    ) -> Result<ListTriggersResponse, ErrorData> {
-        let rows: Vec<String> = self
-            .connection
-            .fetch_scalar(
-                sqlx::query(BRIEF_SQL)
-                    .bind(pattern)
-                    .bind(pager.limit())
-                    .bind(pager.offset()),
-                database,
-            )
-            .await?;
-        let (triggers, next_cursor) = pager.finalize(rows);
-        Ok(ListTriggersResponse {
-            triggers: TriggerEntries::Brief(triggers),
-            next_cursor,
-        })
-    }
-
-    /// Detailed-mode page: name-keyed metadata wrapped as [`TriggerEntries::Detailed`].
-    async fn list_triggers_detailed(
-        &self,
-        database: Option<&str>,
-        pattern: Option<&str>,
-        pager: Pager,
-    ) -> Result<ListTriggersResponse, ErrorData> {
-        let rows: Vec<(String, sqlx::types::Json<serde_json::Value>)> = self
-            .connection
-            .fetch(
-                sqlx::query(DETAILED_SQL)
-                    .bind(pattern)
-                    .bind(pager.limit())
-                    .bind(pager.offset()),
-                database,
-            )
-            .await?;
-        let (rows, next_cursor) = pager.finalize(rows);
-        Ok(ListTriggersResponse {
-            triggers: TriggerEntries::Detailed(rows.into_iter().map(|(name, json)| (name, json.0)).collect()),
-            next_cursor,
-        })
     }
 }

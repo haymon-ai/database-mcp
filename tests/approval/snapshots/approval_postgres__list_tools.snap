@@ -470,10 +470,10 @@ expression: tools
     },
     "outputSchema": {
       "$defs": {
-        "TableEntries": {
+        "ListEntries": {
           "anyOf": [
             {
-              "description": "Brief mode: sorted array of bare table-name strings.",
+              "description": "Brief mode: sorted array of bare entity-name strings.",
               "items": {
                 "type": "string"
               },
@@ -485,7 +485,7 @@ expression: tools
               "type": "object"
             }
           ],
-          "description": "Two-shape table listing payload: bare names in brief mode, name-keyed map in detailed mode.\n\nChosen by the handler based on [`ListTablesRequest::detailed`]. Serialises untagged: brief\nmode becomes a JSON array of strings, detailed mode becomes a JSON object whose keys are\ntable names and whose values are the per-table metadata."
+          "description": "Two-shape listing payload: bare names in brief mode, name-keyed metadata in detailed mode.\n\nShared by [`ListTablesResponse`] and [`ListTriggersResponse`]. Serialises untagged:\nbrief mode → JSON array of strings, detailed mode → JSON object whose keys are\nentity names and whose values are the per-entity metadata."
         }
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -499,7 +499,7 @@ expression: tools
           ]
         },
         "tables": {
-          "$ref": "#/$defs/TableEntries",
+          "$ref": "#/$defs/ListEntries",
           "description": "Page of matching tables. Shape depends on the request's `detailed` flag."
         }
       },
@@ -559,10 +559,10 @@ expression: tools
     },
     "outputSchema": {
       "$defs": {
-        "TriggerEntries": {
+        "ListEntries": {
           "anyOf": [
             {
-              "description": "Brief mode: sorted array of bare trigger-name strings.",
+              "description": "Brief mode: sorted array of bare entity-name strings.",
               "items": {
                 "type": "string"
               },
@@ -574,7 +574,7 @@ expression: tools
               "type": "object"
             }
           ],
-          "description": "Two-shape trigger listing payload: bare names in brief mode, name-keyed map in detailed mode.\n\nChosen by the handler based on the request's `detailed` flag. Serialises untagged: brief\nmode becomes a JSON array of strings, detailed mode becomes a JSON object whose keys are\ntrigger names and whose values are the per-trigger metadata."
+          "description": "Two-shape listing payload: bare names in brief mode, name-keyed metadata in detailed mode.\n\nShared by [`ListTablesResponse`] and [`ListTriggersResponse`]. Serialises untagged:\nbrief mode → JSON array of strings, detailed mode → JSON object whose keys are\nentity names and whose values are the per-entity metadata."
         }
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -588,7 +588,7 @@ expression: tools
           ]
         },
         "triggers": {
-          "$ref": "#/$defs/TriggerEntries",
+          "$ref": "#/$defs/ListEntries",
           "description": "Page of matching triggers. Shape depends on the request's `detailed` flag."
         }
       },

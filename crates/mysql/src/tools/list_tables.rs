@@ -9,7 +9,7 @@ use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};
 
 use crate::MysqlHandler;
-use crate::types::{ListTablesRequest, ListTablesResponse, TableEntries};
+use crate::types::{ListEntries, ListTablesRequest, ListTablesResponse};
 
 /// Brief-mode SQL: `information_schema.TABLES` filtered to `BASE TABLE` rows.
 ///
@@ -376,74 +376,46 @@ impl MysqlHandler {
             .to_owned();
         validate_ident(&database)?;
 
-        let pager = Pager::new(cursor, self.config.page_size);
         let pattern = search.as_deref().map(str::trim).filter(|s| !s.is_empty());
+        let pager = Pager::new(cursor, self.config.page_size);
 
         if detailed {
-            return self.list_tables_detailed(&database, pattern, pager).await;
+            let rows: Vec<(String, sqlx::types::Json<serde_json::Value>)> = self
+                .connection
+                .fetch(
+                    sqlx::query(DETAILED_SQL)
+                        .bind(&database)
+                        .bind(pattern)
+                        .bind(pattern)
+                        .bind(pager.limit())
+                        .bind(pager.offset())
+                        .bind(&database),
+                    None,
+                )
+                .await?;
+            let (rows, next_cursor) = pager.finalize(rows);
+            Ok(ListTablesResponse {
+                tables: ListEntries::Detailed(rows.into_iter().map(|(name, json)| (name, json.0)).collect()),
+                next_cursor,
+            })
+        } else {
+            let rows: Vec<String> = self
+                .connection
+                .fetch_scalar(
+                    sqlx::query(BRIEF_SQL)
+                        .bind(&database)
+                        .bind(pattern)
+                        .bind(pattern)
+                        .bind(pager.limit())
+                        .bind(pager.offset()),
+                    None,
+                )
+                .await?;
+            let (tables, next_cursor) = pager.finalize(rows);
+            Ok(ListTablesResponse {
+                tables: ListEntries::Brief(tables),
+                next_cursor,
+            })
         }
-
-        self.list_tables_brief(&database, pattern, pager).await
-    }
-
-    /// Brief-mode page: sorted array of bare table-name strings.
-    ///
-    /// # Errors
-    ///
-    /// Returns an internal-error [`ErrorData`] if the underlying query fails.
-    async fn list_tables_brief(
-        &self,
-        database: &str,
-        pattern: Option<&str>,
-        pager: Pager,
-    ) -> Result<ListTablesResponse, ErrorData> {
-        let rows: Vec<String> = self
-            .connection
-            .fetch_scalar(
-                sqlx::query(BRIEF_SQL)
-                    .bind(database)
-                    .bind(pattern)
-                    .bind(pattern)
-                    .bind(pager.limit())
-                    .bind(pager.offset()),
-                None,
-            )
-            .await?;
-        let (tables, next_cursor) = pager.finalize(rows);
-        Ok(ListTablesResponse {
-            tables: TableEntries::Brief(tables),
-            next_cursor,
-        })
-    }
-
-    /// Detailed-mode page: name-keyed metadata map.
-    ///
-    /// # Errors
-    ///
-    /// Returns an internal-error [`ErrorData`] if the underlying query fails.
-    async fn list_tables_detailed(
-        &self,
-        database: &str,
-        pattern: Option<&str>,
-        pager: Pager,
-    ) -> Result<ListTablesResponse, ErrorData> {
-        let rows: Vec<(String, sqlx::types::Json<serde_json::Value>)> = self
-            .connection
-            .fetch(
-                sqlx::query(DETAILED_SQL)
-                    .bind(database)
-                    .bind(pattern)
-                    .bind(pattern)
-                    .bind(pager.limit())
-                    .bind(pager.offset())
-                    .bind(database),
-                None,
-            )
-            .await?;
-        let (rows, next_cursor) = pager.finalize(rows);
-        Ok(ListTablesResponse {
-            tables: TableEntries::Detailed(rows.into_iter().map(|(name, json)| (name, json.0)).collect()),
-            next_cursor,
-        })
     }
 }

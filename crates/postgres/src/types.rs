@@ -1,14 +1,15 @@
 //! PostgreSQL-specific MCP tool request types.
 //!
-//! `TableEntries` and `ListTablesResponse` live in the shared `dbmcp-server`
-//! crate; they are re-exported here so call sites can keep importing them
-//! from `crate::types`.
+//! Shared response types (`ListEntries`, `ListTablesResponse`,
+//! `ListTriggersResponse`) live in the `dbmcp-server` crate and are
+//! re-exported here so call sites can keep importing them from
+//! `crate::types`.
 
 use dbmcp_server::pagination::Cursor;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-pub use dbmcp_server::types::{ListTablesResponse, ListTriggersResponse, TableEntries, TriggerEntries};
+pub use dbmcp_server::types::{ListEntries, ListTablesResponse, ListTriggersResponse};
 
 /// Request for the `dropTable` tool.
 #[derive(Debug, Default, Deserialize, JsonSchema)]

@@ -8,7 +8,7 @@ use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};
 
 use crate::SqliteHandler;
-use crate::types::{ListTablesRequest, ListTablesResponse, TableEntries};
+use crate::types::{ListEntries, ListTablesRequest, ListTablesResponse};
 
 /// Marker type for the `listTables` MCP tool.
 pub(crate) struct ListTablesTool;
@@ -280,55 +280,41 @@ impl SqliteHandler {
             detailed,
         }: ListTablesRequest,
     ) -> Result<ListTablesResponse, ErrorData> {
-        let pager = Pager::new(cursor, self.config.page_size);
         let pattern = search.as_deref().map(str::trim).filter(|s| !s.is_empty());
+        let pager = Pager::new(cursor, self.config.page_size);
 
         if detailed {
-            return self.list_tables_detailed(pattern, pager).await;
+            let rows: Vec<(String, sqlx::types::Json<serde_json::Value>)> = self
+                .connection
+                .fetch(
+                    sqlx::query(DETAILED_SQL)
+                        .bind(pattern)
+                        .bind(pager.limit())
+                        .bind(pager.offset()),
+                    None,
+                )
+                .await?;
+            let (rows, next_cursor) = pager.finalize(rows);
+            Ok(ListTablesResponse {
+                tables: ListEntries::Detailed(rows.into_iter().map(|(name, json)| (name, json.0)).collect()),
+                next_cursor,
+            })
+        } else {
+            let rows: Vec<String> = self
+                .connection
+                .fetch_scalar(
+                    sqlx::query(BRIEF_SQL)
+                        .bind(pattern)
+                        .bind(pager.limit())
+                        .bind(pager.offset()),
+                    None,
+                )
+                .await?;
+            let (tables, next_cursor) = pager.finalize(rows);
+            Ok(ListTablesResponse {
+                tables: ListEntries::Brief(tables),
+                next_cursor,
+            })
         }
-
-        self.list_tables_brief(pattern, pager).await
-    }
-
-    /// Brief-mode page: sorted bare table-name strings.
-    async fn list_tables_brief(&self, pattern: Option<&str>, pager: Pager) -> Result<ListTablesResponse, ErrorData> {
-        let rows: Vec<String> = self
-            .connection
-            .fetch_scalar(
-                sqlx::query(BRIEF_SQL)
-                    .bind(pattern)
-                    .bind(pager.limit())
-                    .bind(pager.offset()),
-                None,
-            )
-            .await?;
-        let (tables, next_cursor) = pager.finalize(rows);
-        Ok(ListTablesResponse {
-            tables: TableEntries::Brief(tables),
-            next_cursor,
-        })
-    }
-
-    /// Detailed-mode page: name-keyed metadata map.
-    ///
-    /// `json_object(...)` returns TEXT on `SQLite`; sqlx's
-    /// [`sqlx::types::Json<Value>`] decoder reads the TEXT column directly
-    /// via `serde_json::from_str`, so no manual reparse is needed.
-    async fn list_tables_detailed(&self, pattern: Option<&str>, pager: Pager) -> Result<ListTablesResponse, ErrorData> {
-        let rows: Vec<(String, sqlx::types::Json<serde_json::Value>)> = self
-            .connection
-            .fetch(
-                sqlx::query(DETAILED_SQL)
-                    .bind(pattern)
-                    .bind(pager.limit())
-                    .bind(pager.offset()),
-                None,
-            )
-            .await?;
-        let (rows, next_cursor) = pager.finalize(rows);
-        Ok(ListTablesResponse {
-            tables: TableEntries::Detailed(rows.into_iter().map(|(name, json)| (name, json.0)).collect()),
-            next_cursor,
-        })
     }
 }
