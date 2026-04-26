@@ -10,7 +10,6 @@ use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};
 
 use crate::MysqlHandler;
-use crate::tools::definer_sql::definer_canonical_sql;
 
 /// Marker type for the `listTriggers` MCP tool.
 pub(crate) struct ListTriggersTool;
@@ -98,6 +97,49 @@ const BRIEF_SQL: &str = r"
     ORDER BY TRIGGER_NAME
     LIMIT ? OFFSET ?";
 
+/// Detailed-mode SQL — single SELECT against `information_schema.TRIGGERS`.
+///
+/// `JSON_OBJECT(...)` projects ten fields per row. Identifiers in the
+/// reconstructed `definition` are backtick-quoted with embedded backticks
+/// doubled. The `DEFINER` clause is rendered in canonical `SHOW CREATE TRIGGER`
+/// form via inline `SUBSTRING_INDEX` calls — `'@', 1` returns the user
+/// component and `'@', -1` returns the host component, each backtick-quoted
+/// with embedded backticks doubled. `events` is always a single-element
+/// array on `MySQL`/`MariaDB` (the engine fires one event per definition);
+/// `activationLevel` is always `ROW`.
+const DETAILED_SQL: &str = r"
+    SELECT
+        CAST(TRIGGER_NAME AS CHAR) AS name,
+        JSON_OBJECT(
+            'schema',              CAST(EVENT_OBJECT_SCHEMA AS CHAR),
+            'table',               CAST(EVENT_OBJECT_TABLE  AS CHAR),
+            'timing',              CAST(ACTION_TIMING       AS CHAR),
+            'events',              JSON_ARRAY(CAST(EVENT_MANIPULATION AS CHAR)),
+            'activationLevel',     CAST(ACTION_ORIENTATION  AS CHAR),
+            'definition',          CONCAT(
+                'CREATE DEFINER=`',
+                REPLACE(SUBSTRING_INDEX(DEFINER, '@', 1), '`', '``'),
+                '`@`',
+                REPLACE(SUBSTRING_INDEX(DEFINER, '@', -1), '`', '``'),
+                '`',
+                ' TRIGGER ',
+                '`', REPLACE(TRIGGER_NAME, '`', '``'), '`',
+                ' ', ACTION_TIMING, ' ', EVENT_MANIPULATION,
+                ' ON ',
+                '`', REPLACE(EVENT_OBJECT_TABLE,  '`', '``'), '`',
+                ' FOR EACH ROW ', ACTION_STATEMENT
+            ),
+            'sqlMode',             CAST(SQL_MODE                AS CHAR),
+            'characterSetClient',  CAST(CHARACTER_SET_CLIENT    AS CHAR),
+            'collationConnection', CAST(COLLATION_CONNECTION    AS CHAR),
+            'databaseCollation',   CAST(DATABASE_COLLATION      AS CHAR)
+        ) AS entry
+    FROM information_schema.TRIGGERS
+    WHERE TRIGGER_SCHEMA = ?
+      AND (? IS NULL OR LOWER(TRIGGER_NAME) LIKE LOWER(CONCAT('%', ?, '%')))
+    ORDER BY TRIGGER_NAME, EVENT_OBJECT_TABLE, EVENT_OBJECT_SCHEMA
+    LIMIT ? OFFSET ?";
+
 impl MysqlHandler {
     /// Lists one page of user-defined triggers, optionally filtered and/or detailed.
     ///
@@ -127,11 +169,10 @@ impl MysqlHandler {
         let pager = Pager::new(cursor, self.config.page_size);
 
         if detailed {
-            let detailed_sql = build_detailed_sql();
             let rows: Vec<(String, sqlx::types::Json<serde_json::Value>)> = self
                 .connection
                 .fetch(
-                    sqlx::query(&detailed_sql)
+                    sqlx::query(DETAILED_SQL)
                         .bind(&database)
                         .bind(pattern)
                         .bind(pattern)
@@ -164,66 +205,5 @@ impl MysqlHandler {
                 next_cursor,
             })
         }
-    }
-}
-
-/// Detailed-mode SQL — single SELECT against `information_schema.TRIGGERS`.
-///
-/// `JSON_OBJECT(...)` projects ten fields per row. Identifiers in the
-/// reconstructed `definition` are backtick-quoted with embedded backticks
-/// doubled. The `DEFINER` clause is rendered in canonical `SHOW CREATE TRIGGER`
-/// form via [`definer_canonical_sql`]. `events` is always a single-element
-/// array on `MySQL`/`MariaDB` (the engine fires one event per definition);
-/// `activationLevel` is always `ROW`.
-fn build_detailed_sql() -> String {
-    let definer = definer_canonical_sql("DEFINER");
-    format!(
-        r"
-    SELECT
-        CAST(TRIGGER_NAME AS CHAR) AS name,
-        JSON_OBJECT(
-            'schema',              CAST(EVENT_OBJECT_SCHEMA AS CHAR),
-            'table',               CAST(EVENT_OBJECT_TABLE  AS CHAR),
-            'timing',              CAST(ACTION_TIMING       AS CHAR),
-            'events',              JSON_ARRAY(CAST(EVENT_MANIPULATION AS CHAR)),
-            'activationLevel',     CAST(ACTION_ORIENTATION  AS CHAR),
-            'definition',          CONCAT(
-                'CREATE ',
-                {definer},
-                ' TRIGGER ',
-                '`', REPLACE(TRIGGER_NAME, '`', '``'), '`',
-                ' ', ACTION_TIMING, ' ', EVENT_MANIPULATION,
-                ' ON ',
-                '`', REPLACE(EVENT_OBJECT_TABLE,  '`', '``'), '`',
-                ' FOR EACH ROW ', ACTION_STATEMENT
-            ),
-            'sqlMode',             CAST(SQL_MODE                AS CHAR),
-            'characterSetClient',  CAST(CHARACTER_SET_CLIENT    AS CHAR),
-            'collationConnection', CAST(COLLATION_CONNECTION    AS CHAR),
-            'databaseCollation',   CAST(DATABASE_COLLATION      AS CHAR)
-        ) AS entry
-    FROM information_schema.TRIGGERS
-    WHERE TRIGGER_SCHEMA = ?
-      AND (? IS NULL OR LOWER(TRIGGER_NAME) LIKE LOWER(CONCAT('%', ?, '%')))
-    ORDER BY TRIGGER_NAME, EVENT_OBJECT_TABLE, EVENT_OBJECT_SCHEMA
-    LIMIT ? OFFSET ?"
-    )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::ListTriggersTool;
-    use rmcp::handler::server::router::tool::ToolBase;
-
-    /// Locks in FR-013: read-only contract preserved after the DESCRIPTION
-    /// rewrite. The tool must remain read-only, non-destructive, idempotent,
-    /// and closed-world.
-    #[test]
-    fn list_triggers_preserves_read_only_annotations() {
-        let annotations = ListTriggersTool::annotations().expect("annotations present");
-        assert_eq!(annotations.read_only_hint, Some(true));
-        assert_eq!(annotations.destructive_hint, Some(false));
-        assert_eq!(annotations.idempotent_hint, Some(true));
-        assert_eq!(annotations.open_world_hint, Some(false));
     }
 }

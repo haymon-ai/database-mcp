@@ -9,7 +9,6 @@ use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};
 
 use crate::MysqlHandler;
-use crate::tools::definer_sql::definer_canonical_sql;
 use crate::types::{ListEntries, ListTablesRequest, ListTablesResponse};
 
 /// Brief-mode SQL: `information_schema.TABLES` filtered to `BASE TABLE` rows.
@@ -40,10 +39,10 @@ const BRIEF_SQL: &str = r"
 /// `CONCAT('"', x, '"')` — safe because identifiers cannot contain `"` or `\`.
 /// JSON booleans are produced via `JSON_EXTRACT(IF(cond, 'true', 'false'), '$')`.
 /// The `triggers_info` CTE renders `DEFINER` in canonical
-/// `` DEFINER=`<user>`@`<host>` `` form via [`definer_canonical_sql`] so the
+/// `` DEFINER=`<user>`@`<host>` `` form via inline `SUBSTRING_INDEX` calls so the
 /// reconstructed `CREATE TRIGGER` text round-trips byte-identically with
 /// `SHOW CREATE TRIGGER`.
-const DETAILED_SQL_TEMPLATE: &str = r#"
+const DETAILED_SQL: &str = r#"
 WITH table_info AS (
     SELECT
         t.TABLE_SCHEMA AS table_schema,
@@ -194,7 +193,11 @@ triggers_info AS (
         tr.EVENT_OBJECT_TABLE  AS TABLE_NAME,
         tr.TRIGGER_NAME        AS trigger_name,
         CONCAT(
-            'CREATE ', {DEFINER_CANONICAL},
+            'CREATE DEFINER=`',
+            REPLACE(SUBSTRING_INDEX(tr.DEFINER, '@', 1), '`', '``'),
+            '`@`',
+            REPLACE(SUBSTRING_INDEX(tr.DEFINER, '@', -1), '`', '``'),
+            '`',
             ' TRIGGER ', '`', REPLACE(tr.TRIGGER_NAME, '`', '``'), '`',
             ' ', tr.ACTION_TIMING, ' ', tr.EVENT_MANIPULATION,
             ' ON ',
@@ -385,12 +388,10 @@ impl MysqlHandler {
         let pager = Pager::new(cursor, self.config.page_size);
 
         if detailed {
-            let detailed_sql =
-                DETAILED_SQL_TEMPLATE.replace("{DEFINER_CANONICAL}", &definer_canonical_sql("tr.DEFINER"));
             let rows: Vec<(String, sqlx::types::Json<serde_json::Value>)> = self
                 .connection
                 .fetch(
-                    sqlx::query(&detailed_sql)
+                    sqlx::query(DETAILED_SQL)
                         .bind(&database)
                         .bind(pattern)
                         .bind(pattern)
