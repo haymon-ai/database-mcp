@@ -9,7 +9,7 @@ use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};
 
 use crate::MysqlHandler;
-use crate::types::{ListTablesRequest, ListTablesResponse, TableEntries};
+use crate::types::{ListTablesRequest, ListTablesResponse};
 
 /// Brief-mode SQL: `information_schema.TABLES` filtered to `BASE TABLE` rows.
 ///
@@ -37,7 +37,7 @@ const BRIEF_SQL: &str = r"
 /// `JSON_QUOTE` inside `GROUP_CONCAT` returns empty on `MySQL` 9 (`information_schema`
 /// text columns are `VARBINARY`-typed), so column names are wrapped via plain
 /// `CONCAT('"', x, '"')` — safe because identifiers cannot contain `"` or `\`.
-/// JSON booleans are produced via `JSON_EXTRACT('true', '$')`/`JSON_EXTRACT('false', '$')`.
+/// JSON booleans are produced via `JSON_EXTRACT(IF(cond, 'true', 'false'), '$')`.
 const DETAILED_SQL: &str = r#"
 WITH table_info AS (
     SELECT
@@ -215,7 +215,7 @@ SELECT
                 'name',            ci.column_name,
                 'dataType',        ci.data_type,
                 'ordinalPosition', ci.ordinal_position,
-                'nullable',        IF(ci.nullable = 1, JSON_EXTRACT('true', '$'), JSON_EXTRACT('false', '$')),
+                'nullable',        JSON_EXTRACT(IF(ci.nullable = 1, 'true', 'false'), '$'),
                 'default',         ci.column_default,
                 'comment',         ci.column_comment
             ))
@@ -238,8 +238,8 @@ SELECT
             SELECT JSON_ARRAYAGG(JSON_OBJECT(
                 'name',       ii.index_name,
                 'columns',    JSON_EXTRACT(ii.columns, '$'),
-                'unique',     IF(ii.is_unique = 1, JSON_EXTRACT('true', '$'), JSON_EXTRACT('false', '$')),
-                'primary',    IF(ii.is_primary = 1, JSON_EXTRACT('true', '$'), JSON_EXTRACT('false', '$')),
+                'unique',     JSON_EXTRACT(IF(ii.is_unique = 1, 'true', 'false'), '$'),
+                'primary',    JSON_EXTRACT(IF(ii.is_primary = 1, 'true', 'false'), '$'),
                 'method',     ii.method,
                 'definition', IF(ii.is_primary = 1,
                     CONCAT('PRIMARY KEY (', ii.definition_cols, ') USING ', ii.index_type_raw),
@@ -372,8 +372,8 @@ impl MysqlHandler {
             .as_deref()
             .map(str::trim)
             .filter(|s| !s.is_empty())
-            .map_or_else(|| self.connection.default_database_name().to_owned(), str::to_owned);
-
+            .unwrap_or_else(|| self.connection.default_database_name())
+            .to_owned();
         validate_ident(&database)?;
 
         let pager = Pager::new(cursor, self.config.page_size);
@@ -409,12 +409,7 @@ impl MysqlHandler {
                 None,
             )
             .await?;
-        let (tables, next_cursor) = pager.finalize(rows);
-
-        Ok(ListTablesResponse {
-            tables: TableEntries::Brief(tables),
-            next_cursor,
-        })
+        Ok(ListTablesResponse::brief(rows, pager))
     }
 
     /// Detailed-mode page: name-keyed metadata map.
@@ -428,12 +423,7 @@ impl MysqlHandler {
         pattern: Option<&str>,
         pager: Pager,
     ) -> Result<ListTablesResponse, ErrorData> {
-        #[derive(serde::Deserialize)]
-        struct DetailedRow {
-            name: String,
-            entry: serde_json::Value,
-        }
-
+        // `ListTablesResponse::detailed` reparses MariaDB's JSON-string `entry` payload internally.
         let rows = self
             .connection
             .fetch_json(
@@ -447,28 +437,6 @@ impl MysqlHandler {
                 None,
             )
             .await?;
-
-        let rows: Vec<DetailedRow> = rows
-            .into_iter()
-            .map(|row| {
-                let DetailedRow { name, entry } =
-                    serde_json::from_value(row).expect("row must match DETAILED_SQL shape");
-                // MariaDB's JSON type is a LONGTEXT alias, so `JSON_OBJECT(...)`
-                // arrives as a JSON-formatted string; reparse to a real Value.
-                let entry = match entry {
-                    serde_json::Value::String(s) => {
-                        serde_json::from_str(&s).expect("entry must be valid JSON from JSON_OBJECT")
-                    }
-                    other => other,
-                };
-                DetailedRow { name, entry }
-            })
-            .collect();
-
-        let (rows, next_cursor) = pager.finalize(rows);
-        Ok(ListTablesResponse {
-            tables: TableEntries::Detailed(rows.into_iter().map(|r| (r.name, r.entry)).collect()),
-            next_cursor,
-        })
+        Ok(ListTablesResponse::detailed(rows, pager))
     }
 }

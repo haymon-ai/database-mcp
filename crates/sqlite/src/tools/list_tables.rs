@@ -8,7 +8,7 @@ use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};
 
 use crate::SqliteHandler;
-use crate::types::{ListTablesRequest, ListTablesResponse, TableEntries};
+use crate::types::{ListTablesRequest, ListTablesResponse};
 
 /// Marker type for the `listTables` MCP tool.
 pub(crate) struct ListTablesTool;
@@ -290,7 +290,7 @@ impl SqliteHandler {
         self.list_tables_brief(pattern, pager).await
     }
 
-    /// Brief-mode page: returns a sorted [`TableEntries::Brief`] of bare table-name strings.
+    /// Brief-mode page: sorted bare table-name strings.
     async fn list_tables_brief(&self, pattern: Option<&str>, pager: Pager) -> Result<ListTablesResponse, ErrorData> {
         let rows: Vec<String> = self
             .connection
@@ -302,25 +302,15 @@ impl SqliteHandler {
                 None,
             )
             .await?;
-        let (tables, next_cursor) = pager.finalize(rows);
-        Ok(ListTablesResponse {
-            tables: TableEntries::Brief(tables),
-            next_cursor,
-        })
+        Ok(ListTablesResponse::brief(rows, pager))
     }
 
-    /// Detailed-mode page: deserializes each row into a `(name, entry)` pair.
+    /// Detailed-mode page: name-keyed metadata map.
     ///
-    /// `json_object(...)` returns TEXT on `SQLite`, so the `entry` column arrives
-    /// as a JSON-encoded string. We parse it back into [`serde_json::Value`]
-    /// before handing the pair to the pager.
+    /// `json_object(...)` returns TEXT on `SQLite`, so each `entry` column
+    /// arrives as a JSON-encoded string; [`ListTablesResponse::detailed`]
+    /// reparses transparently.
     async fn list_tables_detailed(&self, pattern: Option<&str>, pager: Pager) -> Result<ListTablesResponse, ErrorData> {
-        #[derive(serde::Deserialize)]
-        struct DetailedRow {
-            name: String,
-            entry: String,
-        }
-
         let rows = self
             .connection
             .fetch_json(
@@ -331,22 +321,6 @@ impl SqliteHandler {
                 None,
             )
             .await?;
-
-        let pairs: Vec<(String, serde_json::Value)> = rows
-            .into_iter()
-            .map(|row| {
-                let DetailedRow { name, entry } =
-                    serde_json::from_value(row).expect("row must match DETAILED_SQL shape");
-                let parsed: serde_json::Value =
-                    serde_json::from_str(&entry).expect("entry must be valid JSON from json_object");
-                (name, parsed)
-            })
-            .collect();
-
-        let (pairs, next_cursor) = pager.finalize(pairs);
-        Ok(ListTablesResponse {
-            tables: TableEntries::Detailed(pairs.into_iter().collect()),
-            next_cursor,
-        })
+        Ok(ListTablesResponse::detailed(rows, pager))
     }
 }

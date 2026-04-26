@@ -4,9 +4,8 @@ use std::borrow::Cow;
 
 use dbmcp_server::pagination::Pager;
 use dbmcp_sql::Connection;
-use dbmcp_sql::sanitize::validate_ident;
 
-use crate::types::{ListTablesRequest, ListTablesResponse, TableEntries};
+use crate::types::{ListTablesRequest, ListTablesResponse};
 use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};
 
@@ -258,12 +257,9 @@ impl PostgresHandler {
             detailed,
         }: ListTablesRequest,
     ) -> Result<ListTablesResponse, ErrorData> {
-        let database = database
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(validate_ident)
-            .transpose()?;
+        // Identifier validation runs inside the connection pool — passing the
+        // trimmed name straight through avoids a redundant round-trip check.
+        let database = database.as_deref().map(str::trim).filter(|s| !s.is_empty());
 
         let pager = Pager::new(cursor, self.config.page_size);
         let pattern = search.as_deref().map(str::trim).filter(|s| !s.is_empty());
@@ -275,19 +271,13 @@ impl PostgresHandler {
         self.list_tables_brief(database, pattern, pager).await
     }
 
-    /// Detailed-mode page: deserializes each row into a `(name, entry)` pair.
+    /// Detailed-mode page: returns name-keyed metadata via [`ListTablesResponse::detailed`].
     async fn list_tables_detailed(
         &self,
         database: Option<&str>,
         pattern: Option<&str>,
         pager: Pager,
     ) -> Result<ListTablesResponse, ErrorData> {
-        #[derive(serde::Deserialize)]
-        struct DetailedRow {
-            name: String,
-            entry: serde_json::Value,
-        }
-
         let rows = self
             .connection
             .fetch_json(
@@ -298,20 +288,10 @@ impl PostgresHandler {
                 database,
             )
             .await?;
-
-        let rows: Vec<DetailedRow> = rows
-            .into_iter()
-            .map(|row| serde_json::from_value(row).expect("row must match DETAILED_SQL shape"))
-            .collect();
-
-        let (rows, next_cursor) = pager.finalize(rows);
-        Ok(ListTablesResponse {
-            tables: TableEntries::Detailed(rows.into_iter().map(|r| (r.name, r.entry)).collect()),
-            next_cursor,
-        })
+        Ok(ListTablesResponse::detailed(rows, pager))
     }
 
-    /// Brief-mode page: collects table-name strings into [`TableEntries::Brief`].
+    /// Brief-mode page: returns sorted table-name strings via [`ListTablesResponse::brief`].
     async fn list_tables_brief(
         &self,
         database: Option<&str>,
@@ -328,10 +308,6 @@ impl PostgresHandler {
                 database,
             )
             .await?;
-        let (tables, next_cursor) = pager.finalize(rows);
-        Ok(ListTablesResponse {
-            tables: TableEntries::Brief(tables),
-            next_cursor,
-        })
+        Ok(ListTablesResponse::brief(rows, pager))
     }
 }

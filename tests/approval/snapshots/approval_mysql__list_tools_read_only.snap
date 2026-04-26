@@ -293,7 +293,7 @@ expression: tools
         }
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "description": "Response for the MySQL/MariaDB `listTables` tool.",
+      "description": "Response for the `listTables` tool.",
       "properties": {
         "nextCursor": {
           "description": "Opaque cursor pointing to the next page. Absent when this is the final page.",
