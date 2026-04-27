@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 
 use dbmcp_server::pagination::Pager;
-use dbmcp_sql::Connection;
+use dbmcp_sql::Connection as _;
 
 use crate::types::{ListTablesRequest, ListTablesResponse};
 use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};

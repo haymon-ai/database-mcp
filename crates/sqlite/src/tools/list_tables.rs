@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 
 use dbmcp_server::pagination::Pager;
-use dbmcp_sql::Connection;
+use dbmcp_sql::Connection as _;
 use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};
 
@@ -89,16 +89,20 @@ impl AsyncTool<SqliteHandler> for ListTablesTool {
 /// (`type = 'shadow'`). Restricting to `('table', 'virtual')` hides shadow
 /// tables from users while still surfacing user-declared virtual tables.
 ///
-/// `COLLATE NOCASE` makes the filter case-insensitive. User-facing wildcards
-/// (`%`, `_`) in `?1` flow straight into LIKE semantics — this matches the
-/// `PostgreSQL` contract established in commit `dbe917f`.
+/// `SQLite`'s `LIKE` operator is case-insensitive for ASCII by default and
+/// `dbmcp` does not toggle the `case_sensitive_like` PRAGMA, so a bare
+/// `LIKE` already matches case-insensitively (a `COLLATE NOCASE` on the
+/// RHS pattern would be a no-op — `LIKE` does not honor right-hand-side
+/// collation; see <https://www.sqlite.org/lang_expr.html>). User-facing
+/// wildcards (`%`, `_`) in `?1` flow straight into LIKE semantics — this
+/// matches the `PostgreSQL` contract established in commit `dbe917f`.
 const BRIEF_SQL: &str = r"
     SELECT tl.name
     FROM pragma_table_list tl
     WHERE tl.schema = 'main'
       AND tl.type IN ('table', 'virtual')
       AND tl.name NOT LIKE 'sqlite_%'
-      AND (?1 IS NULL OR tl.name LIKE '%' || ?1 || '%' COLLATE NOCASE)
+      AND (?1 IS NULL OR tl.name LIKE '%' || ?1 || '%')
     ORDER BY tl.name
     LIMIT ?2 OFFSET ?3";
 
@@ -130,7 +134,7 @@ const DETAILED_SQL: &str = r#"
         WHERE tl.schema = 'main'
           AND tl.type IN ('table', 'virtual')
           AND tl.name NOT LIKE 'sqlite_%'
-          AND (?1 IS NULL OR tl.name LIKE '%' || ?1 || '%' COLLATE NOCASE)
+          AND (?1 IS NULL OR tl.name LIKE '%' || ?1 || '%')
         ORDER BY tl.name
         LIMIT ?2 OFFSET ?3
     ),

@@ -2433,9 +2433,10 @@ async fn test_list_triggers_detailed_paginates() {
 
 #[tokio::test]
 async fn test_list_triggers_detailed_sort_is_deterministic() {
-    // MySQL/MariaDB enforce per-schema trigger-name uniqueness, so the
-    // FR-016 `(EVENT_OBJECT_TABLE, EVENT_OBJECT_SCHEMA)` tiebreaker can never
-    // fire in practice within a single schema. This test instead asserts
+    // MySQL/MariaDB enforce per-schema trigger-name uniqueness via the
+    // `(TRIGGER_SCHEMA, TRIGGER_NAME)` primary key on
+    // `information_schema.TRIGGERS`, so `ORDER BY TRIGGER_NAME` alone is a
+    // total order for a single-schema listing. This test asserts
     // deterministic name-ordering across consecutive calls (cursor stability
     // depends on it).
     let handler = handler(true);

@@ -29,7 +29,7 @@ Use when:
 
 <parameters>
 - `cursor` — Opaque pagination cursor; echo the prior response's `nextCursor`.
-- `search` — Case-insensitive filter on trigger names via `LIKE` with `COLLATE NOCASE`. `%` matches any sequence; `_` matches a single character.
+- `search` — Case-insensitive filter on trigger names via `LIKE` (SQLite's `LIKE` is ASCII-case-insensitive by default). `%` matches any sequence; `_` matches a single character.
 - `detailed` — When `true`, returns full metadata objects keyed by trigger name instead of bare name strings. Default `false`.
 </parameters>
 
@@ -88,16 +88,18 @@ impl AsyncTool<SqliteHandler> for ListTriggersTool {
 
 /// Brief-mode SQL: name-only column with optional case-insensitive `LIKE` filter.
 ///
-/// `COLLATE NOCASE` makes the filter case-insensitive regardless of the
-/// connection's `case_sensitive_like` PRAGMA, matching the contract already
-/// shipped for `SQLite` `listTables`. User-facing `LIKE` wildcards (`%`, `_`)
-/// in `?1` flow straight through.
+/// `SQLite`'s `LIKE` operator is case-insensitive for ASCII by default and
+/// `dbmcp` does not toggle the `case_sensitive_like` PRAGMA, so a bare
+/// `LIKE` already matches case-insensitively. (A `COLLATE NOCASE` clause on
+/// the right-hand pattern would be a no-op — `LIKE` does not honor RHS
+/// collation; see <https://www.sqlite.org/lang_expr.html>.) User-facing
+/// `LIKE` wildcards (`%`, `_`) in `?1` flow straight through.
 const BRIEF_SQL: &str = r"
     SELECT name
     FROM sqlite_schema
     WHERE type = 'trigger'
       AND name NOT LIKE 'sqlite_%'
-      AND (?1 IS NULL OR name LIKE '%' || ?1 || '%' COLLATE NOCASE)
+      AND (?1 IS NULL OR name LIKE '%' || ?1 || '%')
     ORDER BY name
     LIMIT ?2 OFFSET ?3";
 
@@ -108,7 +110,9 @@ const BRIEF_SQL: &str = r"
 /// `AND sql IS NOT NULL` enforces the homogeneous-shape contract: rows whose
 /// stored `CREATE TRIGGER` text is `NULL` (extension-generated, hand-edited)
 /// are silently omitted from detailed pages. Brief mode does not filter on
-/// `sql` so those triggers are still discoverable by name.
+/// `sql` so those triggers are still discoverable by name. `SQLite` trigger
+/// names are unique within a database, so `ORDER BY name` is sufficient
+/// for stable pagination — no secondary tie-breaker needed.
 const DETAILED_SQL: &str = r"
     SELECT
         name,
@@ -121,8 +125,8 @@ const DETAILED_SQL: &str = r"
     WHERE type = 'trigger'
       AND name NOT LIKE 'sqlite_%'
       AND sql IS NOT NULL
-      AND (?1 IS NULL OR name LIKE '%' || ?1 || '%' COLLATE NOCASE)
-    ORDER BY name, tbl_name
+      AND (?1 IS NULL OR name LIKE '%' || ?1 || '%')
+    ORDER BY name
     LIMIT ?2 OFFSET ?3";
 
 impl SqliteHandler {

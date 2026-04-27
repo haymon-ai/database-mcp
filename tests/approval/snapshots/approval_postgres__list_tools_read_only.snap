@@ -1,6 +1,5 @@
 ---
 source: tests/approval/postgres.rs
-assertion_line: 52
 expression: tools
 ---
 [
@@ -386,7 +385,7 @@ expression: tools
     "description": "List user-defined triggers in the `public` schema, optionally filtered and/or with full metadata.\n\n<usecase>\nUse when:\n- Auditing triggers across a database (brief mode, default).\n- Searching for a trigger by partial name (pass `search`).\n- Inspecting a trigger's timing, events, activation level, handler function, status, and full `CREATE TRIGGER` text before reasoning about side-effects (pass `detailed: true`). Detailed mode supersedes ad-hoc `readQuery` against `pg_trigger` / `information_schema.triggers`.\n</usecase>\n\n<parameters>\n- `database` — Database to target. Defaults to the active database.\n- `cursor` — Opaque pagination cursor; echo the prior response's `nextCursor`.\n- `search` — Case-insensitive filter on trigger names via `ILIKE`. `%` matches any sequence; `_` matches a single character.\n- `detailed` — When `true`, returns full metadata objects keyed by trigger name instead of bare name strings. Default `false`.\n</parameters>\n\n<examples>\n✓ \"What triggers are in the mydb database?\" → listTriggers(database=\"mydb\")\n✓ \"Find the audit triggers\" → listTriggers(search=\"audit\")\n✓ \"What does orders_audit_after_iu do?\" → listTriggers(search=\"orders_audit_after_iu\", detailed=true)\n✗ \"Show me a trigger's body\" → use detailed mode; the `definition` field carries the full `CREATE TRIGGER` text\n</examples>\n\n<what_it_returns>\nBrief mode (default): a sorted JSON array of trigger-name strings, e.g. `[\"customers_audit_after_insert\", \"orders_audit_after_insert\"]`.\nDetailed mode: a JSON object keyed by trigger name; each value carries `schema`, `table`, `status` (ENABLED/DISABLED/REPLICA/ALWAYS), `timing` (BEFORE/AFTER/INSTEAD OF), `events` (array of strings drawn from INSERT/UPDATE/DELETE/TRUNCATE in that fixed order), `activationLevel` (ROW/STATEMENT), `functionName`, and `definition` (the full `CREATE TRIGGER` text). Internal triggers (FK enforcement etc.) are excluded.\n</what_it_returns>\n\n<pagination>\nPaginated. Pass the prior response's `nextCursor` as `cursor` to fetch the next page. The `search` filter must stay the same across pages for cursor continuity.\n</pagination>",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "description": "Request for the Postgres `listTriggers` tool — extends the shared shape with `search` and `detailed`.",
+      "description": "Request for the `listTriggers` tool.",
       "properties": {
         "cursor": {
           "default": null,
@@ -406,12 +405,12 @@ expression: tools
         },
         "detailed": {
           "default": false,
-          "description": "When `true`, each returned entry is a full metadata object (schema, table, status,\ntiming, events, activationLevel, functionName, definition); when `false` or omitted,\neach entry is the bare trigger-name string.",
+          "description": "When `true`, each returned entry is a full metadata object (schema, table, timing,\nevents, activationLevel, definition, plus backend-specific fields); when `false` or\nomitted, each entry is the bare trigger-name string.",
           "type": "boolean"
         },
         "search": {
           "default": null,
-          "description": "Optional case-insensitive filter on trigger names. The input is used within an `ILIKE`\nclause: `%` matches any sequence of characters and `_` matches any single character.",
+          "description": "Optional case-insensitive filter on trigger names. The input is used within a `LIKE`\nclause: `%` matches any sequence of characters and `_` matches any single character.",
           "type": [
             "string",
             "null"

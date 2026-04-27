@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 
 use dbmcp_server::pagination::Pager;
-use dbmcp_sql::Connection;
+use dbmcp_sql::Connection as _;
 use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};
 
@@ -87,6 +87,10 @@ impl AsyncTool<PostgresHandler> for ListTriggersTool {
 ///
 /// `'public'::regnamespace` casts the schema name to a `pg_namespace.oid`
 /// at plan time, replacing what would otherwise be a `pg_namespace` join.
+/// Trigger names are not globally unique on Postgres — the same trigger
+/// name can appear on multiple relations — so `c.relname` is the secondary
+/// sort key, matching the detailed-mode `ORDER BY` and keeping `OFFSET`
+/// pagination stable across duplicate names.
 const BRIEF_SQL: &str = r"
     SELECT t.tgname
     FROM pg_trigger t
@@ -94,7 +98,7 @@ const BRIEF_SQL: &str = r"
     WHERE c.relnamespace = 'public'::regnamespace
       AND NOT t.tgisinternal
       AND ($1::text IS NULL OR t.tgname ILIKE '%' || $1 || '%')
-    ORDER BY t.tgname
+    ORDER BY t.tgname, c.relname
     LIMIT $2 OFFSET $3";
 
 /// Detailed-mode SQL: per-trigger `json_build_object` projection.
@@ -105,6 +109,12 @@ const BRIEF_SQL: &str = r"
 /// already pins it to that one namespace. Postgres defers SELECT-list
 /// evaluation past `LIMIT`, so `pg_get_triggerdef` and the events array
 /// only run for the page's rows.
+///
+/// `tgtype` bitmask values are stable since 8.4 and defined in
+/// `src/include/catalog/pg_trigger.h`:
+/// `TRIGGER_TYPE_ROW`=1, `TRIGGER_TYPE_BEFORE`=2, `TRIGGER_TYPE_INSERT`=4,
+/// `TRIGGER_TYPE_DELETE`=8, `TRIGGER_TYPE_UPDATE`=16,
+/// `TRIGGER_TYPE_TRUNCATE`=32, `TRIGGER_TYPE_INSTEAD`=64.
 const DETAILED_SQL: &str = r"
     SELECT
         t.tgname AS name,

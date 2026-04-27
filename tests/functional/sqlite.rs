@@ -1456,7 +1456,7 @@ async fn test_list_triggers_search_is_case_insensitive() {
     assert_eq!(
         lower.triggers.as_brief().expect("brief"),
         upper.triggers.as_brief().expect("brief"),
-        "case-insensitive (COLLATE NOCASE)"
+        "case-insensitive (SQLite `LIKE` is ASCII-case-insensitive by default)"
     );
 }
 

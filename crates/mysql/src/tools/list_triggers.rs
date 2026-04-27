@@ -101,12 +101,17 @@ const BRIEF_SQL: &str = r"
 ///
 /// `JSON_OBJECT(...)` projects ten fields per row. Identifiers in the
 /// reconstructed `definition` are backtick-quoted with embedded backticks
-/// doubled. The `DEFINER` clause is rendered in canonical `SHOW CREATE TRIGGER`
-/// form via inline `SUBSTRING_INDEX` calls — `'@', 1` returns the user
-/// component and `'@', -1` returns the host component, each backtick-quoted
-/// with embedded backticks doubled. `events` is always a single-element
+/// doubled. The `DEFINER` column stores `user@host` unquoted; the user
+/// portion can itself contain `@` (e.g. `'foo@bar'@'localhost'`), so the
+/// host is the segment after the **last** `@` and the user is everything
+/// before it (`SUBSTRING_INDEX(..., '@', -1)` for host, `LEFT(...)` for
+/// user). The reconstructed clause is rendered in canonical
+/// `SHOW CREATE TRIGGER` form with each component backtick-quoted.
+/// `events` is always a single-element
 /// array on `MySQL`/`MariaDB` (the engine fires one event per definition);
-/// `activationLevel` is always `ROW`.
+/// `activationLevel` is always `ROW`. `ORDER BY TRIGGER_NAME` is sufficient —
+/// `(TRIGGER_SCHEMA, TRIGGER_NAME)` is the table's primary key, and the
+/// `WHERE` clause already pins `TRIGGER_SCHEMA`.
 const DETAILED_SQL: &str = r"
     SELECT
         CAST(TRIGGER_NAME AS CHAR) AS name,
@@ -118,7 +123,7 @@ const DETAILED_SQL: &str = r"
             'activationLevel',     CAST(ACTION_ORIENTATION  AS CHAR),
             'definition',          CONCAT(
                 'CREATE DEFINER=`',
-                REPLACE(SUBSTRING_INDEX(DEFINER, '@', 1), '`', '``'),
+                REPLACE(LEFT(DEFINER, LENGTH(DEFINER) - LENGTH(SUBSTRING_INDEX(DEFINER, '@', -1)) - 1), '`', '``'),
                 '`@`',
                 REPLACE(SUBSTRING_INDEX(DEFINER, '@', -1), '`', '``'),
                 '`',
@@ -137,7 +142,7 @@ const DETAILED_SQL: &str = r"
     FROM information_schema.TRIGGERS
     WHERE TRIGGER_SCHEMA = ?
       AND (? IS NULL OR LOWER(TRIGGER_NAME) LIKE LOWER(CONCAT('%', ?, '%')))
-    ORDER BY TRIGGER_NAME, EVENT_OBJECT_TABLE, EVENT_OBJECT_SCHEMA
+    ORDER BY TRIGGER_NAME
     LIMIT ? OFFSET ?";
 
 impl MysqlHandler {
@@ -157,13 +162,13 @@ impl MysqlHandler {
             detailed,
         }: ListTriggersRequest,
     ) -> Result<ListTriggersResponse, ErrorData> {
-        let database = database
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| self.connection.default_database_name())
-            .to_owned();
-        validate_ident(&database)?;
+        let database = validate_ident(
+            database
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| self.connection.default_database_name()),
+        )?;
 
         let pattern = search.as_deref().map(str::trim).filter(|s| !s.is_empty());
         let pager = Pager::new(cursor, self.config.page_size);
@@ -173,7 +178,7 @@ impl MysqlHandler {
                 .connection
                 .fetch(
                     sqlx::query(DETAILED_SQL)
-                        .bind(&database)
+                        .bind(database)
                         .bind(pattern)
                         .bind(pattern)
                         .bind(pager.limit())
@@ -192,7 +197,7 @@ impl MysqlHandler {
             .connection
             .fetch_scalar(
                 sqlx::query(BRIEF_SQL)
-                    .bind(&database)
+                    .bind(database)
                     .bind(pattern)
                     .bind(pattern)
                     .bind(pager.limit())

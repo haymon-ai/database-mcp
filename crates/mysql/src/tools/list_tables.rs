@@ -38,10 +38,11 @@ const BRIEF_SQL: &str = r"
 /// text columns are `VARBINARY`-typed), so column names are wrapped via plain
 /// `CONCAT('"', x, '"')` — safe because identifiers cannot contain `"` or `\`.
 /// JSON booleans are produced via `JSON_EXTRACT(IF(cond, 'true', 'false'), '$')`.
-/// The `triggers_info` CTE renders `DEFINER` in canonical
-/// `` DEFINER=`<user>`@`<host>` `` form via inline `SUBSTRING_INDEX` calls so the
-/// reconstructed `CREATE TRIGGER` text round-trips byte-identically with
-/// `SHOW CREATE TRIGGER`.
+/// The `triggers_info` CTE renders the `DEFINER` clause in canonical
+/// `SHOW CREATE TRIGGER` form with each component backtick-quoted. The
+/// `DEFINER` column stores `user@host` unquoted and `user` may itself
+/// contain `@` (e.g. `'foo@bar'@'localhost'`), so the host is the
+/// segment after the **last** `@` and the user is everything before it.
 const DETAILED_SQL: &str = r#"
 WITH table_info AS (
     SELECT
@@ -194,7 +195,7 @@ triggers_info AS (
         tr.TRIGGER_NAME        AS trigger_name,
         CONCAT(
             'CREATE DEFINER=`',
-            REPLACE(SUBSTRING_INDEX(tr.DEFINER, '@', 1), '`', '``'),
+            REPLACE(LEFT(tr.DEFINER, LENGTH(tr.DEFINER) - LENGTH(SUBSTRING_INDEX(tr.DEFINER, '@', -1)) - 1), '`', '``'),
             '`@`',
             REPLACE(SUBSTRING_INDEX(tr.DEFINER, '@', -1), '`', '``'),
             '`',
@@ -376,13 +377,13 @@ impl MysqlHandler {
             detailed,
         }: ListTablesRequest,
     ) -> Result<ListTablesResponse, ErrorData> {
-        let database = database
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| self.connection.default_database_name())
-            .to_owned();
-        validate_ident(&database)?;
+        let database = validate_ident(
+            database
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| self.connection.default_database_name()),
+        )?;
 
         let pattern = search.as_deref().map(str::trim).filter(|s| !s.is_empty());
         let pager = Pager::new(cursor, self.config.page_size);
@@ -392,12 +393,12 @@ impl MysqlHandler {
                 .connection
                 .fetch(
                     sqlx::query(DETAILED_SQL)
-                        .bind(&database)
+                        .bind(database)
                         .bind(pattern)
                         .bind(pattern)
                         .bind(pager.limit())
                         .bind(pager.offset())
-                        .bind(&database),
+                        .bind(database),
                     None,
                 )
                 .await?;
@@ -412,7 +413,7 @@ impl MysqlHandler {
             .connection
             .fetch_scalar(
                 sqlx::query(BRIEF_SQL)
-                    .bind(&database)
+                    .bind(database)
                     .bind(pattern)
                     .bind(pattern)
                     .bind(pager.limit())

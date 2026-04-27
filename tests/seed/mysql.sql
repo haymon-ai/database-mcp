@@ -139,12 +139,12 @@ CREATE TRIGGER `app`.`users_audit_after_insert` AFTER INSERT ON `app`.`users`
     SELECT NEW.`id` FROM DUAL WHERE 'a note
 spans two lines' IS NOT NULL;
 
--- Note: MySQL/MariaDB enforce per-schema trigger-name uniqueness, so the
--- FR-016 tiebreaker columns `(EVENT_OBJECT_TABLE, EVENT_OBJECT_SCHEMA)` in the
--- detailed-mode ORDER BY can never fire in practice for a single-schema
--- listing. The tiebreaker stays in the SQL for parity with Postgres and as
--- defence-in-depth; the integration test asserts deterministic name-ordering
--- across consecutive calls instead.
+-- Note: MySQL/MariaDB enforce per-schema trigger-name uniqueness via the
+-- `(TRIGGER_SCHEMA, TRIGGER_NAME)` primary key on `information_schema.TRIGGERS`,
+-- so `ORDER BY TRIGGER_NAME` alone is a total order for a single-schema
+-- listing — no tiebreaker columns are needed and none are emitted. The
+-- integration test asserts deterministic name-ordering across consecutive
+-- calls as a regression guard.
 
 -- Stored functions & procedures (single-statement bodies so no DELIMITER needed)
 
