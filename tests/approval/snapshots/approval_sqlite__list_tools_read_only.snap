@@ -130,9 +130,34 @@ expression: tools
   {
     "name": "listTriggers",
     "title": "List Triggers",
-    "description": "List all triggers in the connected SQLite database.\n\n<usecase>\nUse when:\n- Investigating side-effects on INSERT/UPDATE/DELETE for a table\n- Auditing trigger coverage across a database\n- The user asks what triggers fire in the database\n</usecase>\n\n<examples>\n✓ \"What triggers are in this database?\"\n✓ \"Does a user-audit trigger exist?\" → listTriggers to check\n✗ \"Show me a trigger's body\" → use readQuery against sqlite_schema\n</examples>\n\n<what_it_returns>\nA sorted JSON array of trigger name strings.\n</what_it_returns>\n\n<pagination>\nPaginated. Pass the prior response's `nextCursor` as `cursor` to fetch the next page.\n</pagination>",
+    "description": "List triggers in the connected SQLite database, optionally filtered and/or with full metadata.\n\n<usecase>\nUse when:\n- Auditing trigger coverage across a database (brief mode, default).\n- Searching for a trigger by partial name (pass `search`).\n- Inspecting a trigger's table and full `CREATE TRIGGER` text before reasoning about side-effects (pass `detailed: true`). Detailed mode supersedes ad-hoc `readQuery` against `sqlite_schema`.\n</usecase>\n\n<parameters>\n- `cursor` — Opaque pagination cursor; echo the prior response's `nextCursor`.\n- `search` — Case-insensitive filter on trigger names via `LIKE` with `COLLATE NOCASE`. `%` matches any sequence; `_` matches a single character.\n- `detailed` — When `true`, returns full metadata objects keyed by trigger name instead of bare name strings. Default `false`.\n</parameters>\n\n<examples>\n✓ \"What triggers are in this database?\" → listTriggers()\n✓ \"Find the audit triggers\" → listTriggers(search=\"audit\")\n✓ \"What does orders_audit_after_insert do?\" → listTriggers(search=\"orders_audit_after_insert\", detailed=true)\n✗ \"Show me a trigger's body\" → use detailed mode; the `definition` field carries the full `CREATE TRIGGER` text\n</examples>\n\n<what_it_returns>\nBrief mode (default): a sorted JSON array of trigger-name strings, e.g. `[\"customers_audit_after_insert\", \"orders_audit_after_insert\"]`.\nDetailed mode: a JSON object keyed by trigger name; each value carries exactly three fields — `schema` (always `\"main\"`), `table` (`sqlite_schema.tbl_name` — may be a view name for `INSTEAD OF` triggers), and `definition` (the original `CREATE TRIGGER` text from `sqlite_schema.sql`, byte-for-byte). Internal `sqlite_*` triggers are excluded.\nThe detailed payload deliberately diverges from the Postgres and MySQL/MariaDB `listTriggers` detailed payloads — `timing`, `events`, `activationLevel`, `status`, `functionName`, `sqlMode`, `characterSetClient`, `collationConnection`, `databaseCollation`, and `created` are absent. SQLite's catalogue does not expose those concepts as columns, and this tool deliberately avoids parsing the stored DDL to derive them; clients that need the timing or event keyword can read it off the prefix of `definition`.\nTriggers whose stored `sqlite_schema.sql` is `NULL` (rare; produced by extension-generated rows or hand-edited catalogues) are silently omitted from detailed mode but still listed by name in brief mode.\n</what_it_returns>\n\n<pagination>\nPaginated. Pass the prior response's `nextCursor` as `cursor` to fetch the next page. The `search` filter must stay the same across pages for cursor continuity.\n</pagination>",
     "inputSchema": {
-      "properties": {},
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "description": "Request for the `SQLite` `listTriggers` tool — supports optional search filter and detailed mode.",
+      "properties": {
+        "cursor": {
+          "default": null,
+          "description": "Opaque pagination cursor. Omit (or pass `null`) for the first page.\nOn subsequent calls, pass the `nextCursor` returned by the previous\nresponse verbatim. Cursors are opaque — do not parse, modify, or persist.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "detailed": {
+          "default": false,
+          "description": "When `true`, each returned entry is a full metadata object (schema,\ntable, definition); when `false` or omitted, each entry is the bare\ntrigger-name string.",
+          "type": "boolean"
+        },
+        "search": {
+          "default": null,
+          "description": "Optional case-insensitive filter on trigger names. The input is used within a `LIKE`\nclause: `%` matches any sequence of characters and `_` matches any single character.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "title": "ListTriggersRequest",
       "type": "object"
     },
     "outputSchema": {

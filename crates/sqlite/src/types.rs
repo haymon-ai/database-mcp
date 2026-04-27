@@ -52,7 +52,7 @@ pub struct ListViewsRequest {
     pub cursor: Option<Cursor>,
 }
 
-/// Request for the `listTriggers` tool.
+/// Request for the `SQLite` `listTriggers` tool — supports optional search filter and detailed mode.
 #[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ListTriggersRequest {
@@ -61,6 +61,15 @@ pub struct ListTriggersRequest {
     /// response verbatim. Cursors are opaque — do not parse, modify, or persist.
     #[serde(default)]
     pub cursor: Option<Cursor>,
+    /// Optional case-insensitive filter on trigger names. The input is used within a `LIKE`
+    /// clause: `%` matches any sequence of characters and `_` matches any single character.
+    #[serde(default)]
+    pub search: Option<String>,
+    /// When `true`, each returned entry is a full metadata object (schema,
+    /// table, definition); when `false` or omitted, each entry is the bare
+    /// trigger-name string.
+    #[serde(default)]
+    pub detailed: bool,
 }
 
 /// Request for the `writeQuery` tool.
@@ -95,7 +104,7 @@ pub struct ExplainQueryRequest {
 
 #[cfg(test)]
 mod tests {
-    use super::ListTablesRequest;
+    use super::{ListTablesRequest, ListTriggersRequest};
 
     #[test]
     fn list_tables_request_defaults_to_brief_mode_without_search() {
@@ -108,6 +117,20 @@ mod tests {
     fn list_tables_request_accepts_search_and_detailed() {
         let req: ListTablesRequest = serde_json::from_str(r#"{"search": "post", "detailed": true}"#).expect("parse");
         assert_eq!(req.search.as_deref(), Some("post"));
+        assert!(req.detailed);
+    }
+
+    #[test]
+    fn list_triggers_request_defaults_to_brief_mode_without_search() {
+        let req: ListTriggersRequest = serde_json::from_str("{}").expect("empty object should parse");
+        assert!(req.search.is_none());
+        assert!(!req.detailed, "detailed must default to false");
+    }
+
+    #[test]
+    fn list_triggers_request_accepts_search_and_detailed() {
+        let req: ListTriggersRequest = serde_json::from_str(r#"{"search": "audit", "detailed": true}"#).expect("parse");
+        assert_eq!(req.search.as_deref(), Some("audit"));
         assert!(req.detailed);
     }
 }
