@@ -181,7 +181,7 @@ impl MysqlHandler {
                     None,
                 )
                 .await?;
-            let (rows, next_cursor) = pager.finalize(rows);
+            let (rows, next_cursor) = pager.paginate(rows);
             return Ok(ListTriggersResponse::detailed(
                 rows.into_iter().map(|(name, json)| (name, json.0)).collect(),
                 next_cursor,
@@ -200,7 +200,7 @@ impl MysqlHandler {
                 None,
             )
             .await?;
-        let (triggers, next_cursor) = pager.finalize(rows);
+        let (triggers, next_cursor) = pager.paginate(rows);
         Ok(ListTriggersResponse::brief(triggers, next_cursor))
     }
 }
