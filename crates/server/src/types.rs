@@ -69,6 +69,26 @@ pub struct ListTablesResponse {
     pub next_cursor: Option<Cursor>,
 }
 
+impl ListTablesResponse {
+    /// Builds a brief-mode response from a page of bare table names.
+    #[must_use]
+    pub fn brief(tables: Vec<String>, next_cursor: Option<Cursor>) -> Self {
+        Self {
+            tables: ListEntries::Brief(tables),
+            next_cursor,
+        }
+    }
+
+    /// Builds a detailed-mode response from a page of name → metadata entries.
+    #[must_use]
+    pub fn detailed(tables: IndexMap<String, Value>, next_cursor: Option<Cursor>) -> Self {
+        Self {
+            tables: ListEntries::Detailed(tables),
+            next_cursor,
+        }
+    }
+}
+
 /// Response for tools with no structured return data.
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -166,6 +186,26 @@ pub struct ListTriggersResponse {
     /// Opaque cursor pointing to the next page. Absent when this is the final page.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_cursor: Option<Cursor>,
+}
+
+impl ListTriggersResponse {
+    /// Builds a brief-mode response from a page of bare trigger names.
+    #[must_use]
+    pub fn brief(triggers: Vec<String>, next_cursor: Option<Cursor>) -> Self {
+        Self {
+            triggers: ListEntries::Brief(triggers),
+            next_cursor,
+        }
+    }
+
+    /// Builds a detailed-mode response from a page of name → metadata entries.
+    #[must_use]
+    pub fn detailed(triggers: IndexMap<String, Value>, next_cursor: Option<Cursor>) -> Self {
+        Self {
+            triggers: ListEntries::Detailed(triggers),
+            next_cursor,
+        }
+    }
 }
 
 /// Request for the `listFunctions` tool.

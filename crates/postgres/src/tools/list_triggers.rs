@@ -8,7 +8,7 @@ use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};
 
 use crate::PostgresHandler;
-use crate::types::{ListEntries, ListTriggersRequest, ListTriggersResponse};
+use crate::types::{ListTriggersRequest, ListTriggersResponse};
 
 /// Marker type for the `listTriggers` MCP tool.
 pub(crate) struct ListTriggersTool;
@@ -174,26 +174,23 @@ impl PostgresHandler {
                 )
                 .await?;
             let (rows, next_cursor) = pager.finalize(rows);
-            Ok(ListTriggersResponse {
-                triggers: ListEntries::Detailed(rows.into_iter().map(|(name, json)| (name, json.0)).collect()),
+            return Ok(ListTriggersResponse::detailed(
+                rows.into_iter().map(|(name, json)| (name, json.0)).collect(),
                 next_cursor,
-            })
-        } else {
-            let rows: Vec<String> = self
-                .connection
-                .fetch_scalar(
-                    sqlx::query(BRIEF_SQL)
-                        .bind(pattern)
-                        .bind(pager.limit())
-                        .bind(pager.offset()),
-                    database,
-                )
-                .await?;
-            let (triggers, next_cursor) = pager.finalize(rows);
-            Ok(ListTriggersResponse {
-                triggers: ListEntries::Brief(triggers),
-                next_cursor,
-            })
+            ));
         }
+
+        let rows: Vec<String> = self
+            .connection
+            .fetch_scalar(
+                sqlx::query(BRIEF_SQL)
+                    .bind(pattern)
+                    .bind(pager.limit())
+                    .bind(pager.offset()),
+                database,
+            )
+            .await?;
+        let (triggers, next_cursor) = pager.finalize(rows);
+        Ok(ListTriggersResponse::brief(triggers, next_cursor))
     }
 }

@@ -8,7 +8,7 @@ use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
 use rmcp::model::{ErrorData, ToolAnnotations};
 
 use crate::SqliteHandler;
-use crate::types::{ListEntries, ListTablesRequest, ListTablesResponse};
+use crate::types::{ListTablesRequest, ListTablesResponse};
 
 /// Marker type for the `listTables` MCP tool.
 pub(crate) struct ListTablesTool;
@@ -295,26 +295,23 @@ impl SqliteHandler {
                 )
                 .await?;
             let (rows, next_cursor) = pager.finalize(rows);
-            Ok(ListTablesResponse {
-                tables: ListEntries::Detailed(rows.into_iter().map(|(name, json)| (name, json.0)).collect()),
+            return Ok(ListTablesResponse::detailed(
+                rows.into_iter().map(|(name, json)| (name, json.0)).collect(),
                 next_cursor,
-            })
-        } else {
-            let rows: Vec<String> = self
-                .connection
-                .fetch_scalar(
-                    sqlx::query(BRIEF_SQL)
-                        .bind(pattern)
-                        .bind(pager.limit())
-                        .bind(pager.offset()),
-                    None,
-                )
-                .await?;
-            let (tables, next_cursor) = pager.finalize(rows);
-            Ok(ListTablesResponse {
-                tables: ListEntries::Brief(tables),
-                next_cursor,
-            })
+            ));
         }
+
+        let rows: Vec<String> = self
+            .connection
+            .fetch_scalar(
+                sqlx::query(BRIEF_SQL)
+                    .bind(pattern)
+                    .bind(pager.limit())
+                    .bind(pager.offset()),
+                None,
+            )
+            .await?;
+        let (tables, next_cursor) = pager.finalize(rows);
+        Ok(ListTablesResponse::brief(tables, next_cursor))
     }
 }

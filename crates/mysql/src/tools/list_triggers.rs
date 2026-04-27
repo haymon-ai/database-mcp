@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 
 use dbmcp_server::pagination::Pager;
-use dbmcp_server::types::{ListEntries, ListTriggersRequest, ListTriggersResponse};
+use dbmcp_server::types::{ListTriggersRequest, ListTriggersResponse};
 use dbmcp_sql::Connection as _;
 use dbmcp_sql::sanitize::validate_ident;
 use rmcp::handler::server::router::tool::{AsyncTool, ToolBase};
@@ -182,28 +182,25 @@ impl MysqlHandler {
                 )
                 .await?;
             let (rows, next_cursor) = pager.finalize(rows);
-            Ok(ListTriggersResponse {
-                triggers: ListEntries::Detailed(rows.into_iter().map(|(name, json)| (name, json.0)).collect()),
+            return Ok(ListTriggersResponse::detailed(
+                rows.into_iter().map(|(name, json)| (name, json.0)).collect(),
                 next_cursor,
-            })
-        } else {
-            let rows: Vec<String> = self
-                .connection
-                .fetch_scalar(
-                    sqlx::query(BRIEF_SQL)
-                        .bind(&database)
-                        .bind(pattern)
-                        .bind(pattern)
-                        .bind(pager.limit())
-                        .bind(pager.offset()),
-                    None,
-                )
-                .await?;
-            let (triggers, next_cursor) = pager.finalize(rows);
-            Ok(ListTriggersResponse {
-                triggers: ListEntries::Brief(triggers),
-                next_cursor,
-            })
+            ));
         }
+
+        let rows: Vec<String> = self
+            .connection
+            .fetch_scalar(
+                sqlx::query(BRIEF_SQL)
+                    .bind(&database)
+                    .bind(pattern)
+                    .bind(pattern)
+                    .bind(pager.limit())
+                    .bind(pager.offset()),
+                None,
+            )
+            .await?;
+        let (triggers, next_cursor) = pager.finalize(rows);
+        Ok(ListTriggersResponse::brief(triggers, next_cursor))
     }
 }
