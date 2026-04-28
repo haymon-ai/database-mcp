@@ -160,14 +160,18 @@ The detailed-mode field set diverges per backend:
 
 ### `listFunctions`
 
-List user-defined SQL functions in a database. PostgreSQL excludes aggregates, window functions, and procedures; MySQL/MariaDB excludes loadable UDFs registered in `mysql.func`. Results are paginated — see [Cursor Pagination](#cursor-pagination) for the protocol. The response is a sorted JSON array of function-name strings:
+List user-defined SQL functions in a database. PostgreSQL excludes aggregates, window functions, and procedures; MySQL/MariaDB excludes loadable UDFs registered in `mysql.func`. Results are paginated — see [Cursor Pagination](#cursor-pagination) for the protocol.
+
+Brief mode (default) returns a sorted JSON array of function-name strings. Overloaded functions on PostgreSQL (same name, different argument signatures) appear as one entry per overload — duplicate name strings are expected:
 
 ```json
 {
-  "functions": ["calc_total", "format_phone"],
+  "functions": ["calc_order_subtotal", "calc_order_total", "calc_order_total"],
   "nextCursor": null
 }
 ```
+
+**PostgreSQL only** — pass `search` (case-insensitive `ILIKE` substring; `%` and `_` are wildcards) to filter by name, or `detailed: true` to receive a JSON object keyed by `name(arguments)` whose values carry `schema`, `name`, `language`, `arguments`, `returnType`, `volatility` (`IMMUTABLE` / `STABLE` / `VOLATILE`), `strict`, `security` (`INVOKER` / `DEFINER`), `parallelSafety` (`SAFE` / `RESTRICTED` / `UNSAFE`), `owner`, `description` (or `null` when no `COMMENT ON FUNCTION`), and `definition` (the full `pg_get_functiondef` output). Both can combine. Brief and detailed pages share the same `(proname, oid)` row order, so a client can switch `detailed` mid-pagination without losing position. MySQL/MariaDB return brief mode only.
 
 Available on MySQL/MariaDB and PostgreSQL (`public` schema). Not available for SQLite.
 
