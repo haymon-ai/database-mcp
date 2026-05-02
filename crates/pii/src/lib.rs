@@ -34,7 +34,7 @@ pub mod score;
 
 pub use crate::analyzer::{AnalyzeOptions, Analyzer};
 pub use crate::anonymizer::{AnonymizedText, OperatorConfig, anonymize};
-pub use crate::error::{AnalyzerError, OperatorError, PatternError, RecognizerError};
+pub use crate::error::{OperatorError, PatternError, RecognizerError};
 pub use crate::operator::{ChunkCount, HashAlgorithm, Operator, OperatorKind};
 pub use crate::pattern::Pattern;
 pub use crate::recognizer::{

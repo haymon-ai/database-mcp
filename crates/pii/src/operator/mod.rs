@@ -72,11 +72,16 @@ pub enum OperatorKind {
 
 impl Operator {
     /// Default placeholder operator: `Replace { new_value: "<{entity_type}>" }`.
+    ///
+    /// Built-in entity types are returned as `Cow::Borrowed(&'static str)` (zero
+    /// allocation); custom entity types fall back to a one-time `format!`.
     #[must_use]
     pub fn default_for(entity_type: &EntityType) -> Self {
-        Self::Replace {
-            new_value: Cow::Owned(format!("<{}>", entity_type.as_str())),
-        }
+        let new_value = match builtin_placeholder(entity_type.as_str()) {
+            Some(s) => Cow::Borrowed(s),
+            None => Cow::Owned(format!("<{}>", entity_type.as_str())),
+        };
+        Self::Replace { new_value }
     }
 
     /// Default `Mask` per spec clarification: `'*'`, full span, length-preserving.
@@ -113,16 +118,33 @@ impl Operator {
     }
 
     /// Apply the operator to one matched span.
-    pub(crate) fn apply(&self, candidate: &str) -> String {
+    ///
+    /// Returns `Cow::Borrowed` for `Replace` and `Redact` (zero allocation);
+    /// `Cow::Owned` for `Mask` and `Hash` (each writes a fresh String).
+    pub(crate) fn apply<'a>(&'a self, candidate: &str) -> Cow<'a, str> {
         match self {
-            Self::Replace { new_value } => new_value.as_ref().to_owned(),
+            Self::Replace { new_value } => Cow::Borrowed(new_value.as_ref()),
             Self::Mask {
                 masking_char,
                 chars_to_mask,
                 from_end,
-            } => mask::apply(candidate, *masking_char, *chars_to_mask, *from_end),
-            Self::Redact => String::new(),
-            Self::Hash { algorithm, hash_key } => hash::apply(candidate, *algorithm, hash_key.as_deref()),
+            } => Cow::Owned(mask::apply(candidate, *masking_char, *chars_to_mask, *from_end)),
+            Self::Redact => Cow::Borrowed(""),
+            Self::Hash { algorithm, hash_key } => Cow::Owned(hash::apply(candidate, *algorithm, hash_key.as_deref())),
         }
     }
+}
+
+fn builtin_placeholder(entity_type: &str) -> Option<&'static str> {
+    Some(match entity_type {
+        "EMAIL_ADDRESS" => "<EMAIL_ADDRESS>",
+        "CREDIT_CARD" => "<CREDIT_CARD>",
+        "IBAN_CODE" => "<IBAN_CODE>",
+        "IP_ADDRESS" => "<IP_ADDRESS>",
+        "URL" => "<URL>",
+        "PHONE_NUMBER" => "<PHONE_NUMBER>",
+        "CRYPTO" => "<CRYPTO>",
+        "US_SSN" => "<US_SSN>",
+        _ => return None,
+    })
 }

@@ -86,7 +86,7 @@ impl PatternRecognizer {
             score: final_score,
             explanation: AnalysisExplanation {
                 recognizer_name: self.name.clone(),
-                pattern_name: Some(Cow::Owned(pattern.name().to_owned())),
+                pattern_name: Some(pattern.name_cow()),
                 original_score,
                 validation,
                 final_score,
@@ -105,14 +105,14 @@ impl Recognizer for PatternRecognizer {
     }
 
     fn analyze(&self, text: &str, _opts: &AnalyzeOptions) -> Vec<RecognizerResult> {
-        let mut out = Vec::new();
-        for pattern in &self.patterns {
-            for m in pattern.compiled.find_iter(text) {
-                if let Some(r) = self.build_result(pattern, m.start(), m.end(), text) {
-                    out.push(r);
-                }
-            }
-        }
-        out
+        self.patterns
+            .iter()
+            .flat_map(|pattern| {
+                pattern
+                    .compiled
+                    .find_iter(text)
+                    .filter_map(move |m| self.build_result(pattern, m.start(), m.end(), text))
+            })
+            .collect()
     }
 }

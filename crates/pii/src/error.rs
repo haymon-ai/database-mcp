@@ -16,12 +16,6 @@ pub enum PatternError {
     },
 }
 
-impl PatternError {
-    pub(crate) fn from_regex(e: regex::Error) -> Self {
-        Self::InvalidRegex(Box::new(e))
-    }
-}
-
 /// Errors that surface when constructing a [`crate::PatternRecognizer`] or a deny-list helper.
 #[derive(Debug, Error)]
 pub enum RecognizerError {
@@ -29,13 +23,6 @@ pub enum RecognizerError {
     #[error("recognizer requires at least one pattern or deny-list term")]
     EmptyPatternList,
 }
-
-/// Reserved namespace for analyzer-level errors.
-///
-/// Empty in v1; marked `#[non_exhaustive]` so future variants do not break callers.
-#[derive(Debug, Error)]
-#[non_exhaustive]
-pub enum AnalyzerError {}
 
 /// Errors that surface when constructing or applying an [`crate::Operator`].
 #[derive(Debug, Error)]

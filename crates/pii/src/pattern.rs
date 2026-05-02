@@ -1,5 +1,6 @@
 //! Named regex with confidence score; eagerly compiled at construction.
 
+use std::borrow::Cow;
 use std::fmt;
 
 use crate::error::PatternError;
@@ -11,8 +12,7 @@ use crate::score::Score;
 /// so a bad pattern is rejected at construction, not at match time.
 #[derive(Clone)]
 pub struct Pattern {
-    name: String,
-    regex: String,
+    name: Cow<'static, str>,
     score: Score,
     pub(crate) compiled: regex::Regex,
 }
@@ -21,7 +21,7 @@ impl fmt::Debug for Pattern {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Pattern")
             .field("name", &self.name)
-            .field("regex", &self.regex)
+            .field("regex", &self.compiled.as_str())
             .field("score", &self.score)
             .finish_non_exhaustive()
     }
@@ -33,12 +33,14 @@ impl Pattern {
     /// # Errors
     ///
     /// Returns [`PatternError::InvalidRegex`] when the source fails to compile.
-    pub fn new(name: impl Into<String>, regex_src: impl Into<String>, score: Score) -> Result<Self, PatternError> {
-        let regex_src = regex_src.into();
-        let compiled = regex::Regex::new(&regex_src).map_err(PatternError::from_regex)?;
+    pub fn new(
+        name: impl Into<Cow<'static, str>>,
+        regex_src: impl AsRef<str>,
+        score: Score,
+    ) -> Result<Self, PatternError> {
+        let compiled = regex::Regex::new(regex_src.as_ref()).map_err(|e| PatternError::InvalidRegex(Box::new(e)))?;
         Ok(Self {
             name: name.into(),
-            regex: regex_src,
             score,
             compiled,
         })
@@ -50,10 +52,15 @@ impl Pattern {
         &self.name
     }
 
+    /// Pattern name as a cheap-to-clone [`Cow`]; static literals stay borrowed.
+    pub(crate) fn name_cow(&self) -> Cow<'static, str> {
+        self.name.clone()
+    }
+
     /// Regex source (the string the pattern was constructed with).
     #[must_use]
     pub fn regex(&self) -> &str {
-        &self.regex
+        self.compiled.as_str()
     }
 
     /// Base confidence score, before any validator promotion.
@@ -79,8 +86,8 @@ mod serde_impl {
     impl Serialize for Pattern {
         fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
             Wire {
-                name: self.name.clone(),
-                regex: self.regex.clone(),
+                name: self.name.as_ref().to_owned(),
+                regex: self.compiled.as_str().to_owned(),
                 score: self.score,
             }
             .serialize(ser)

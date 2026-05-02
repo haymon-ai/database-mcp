@@ -62,21 +62,16 @@ impl Analyzer {
     /// Analyze `text`, returning merged + overlap-resolved results.
     #[must_use]
     pub fn analyze(&self, text: &str, opts: &AnalyzeOptions) -> Vec<RecognizerResult> {
-        let allow = opts.entity_allow_list.as_ref();
-        let mut results = Vec::new();
-        for recognizer in &self.recognizers {
-            if let Some(allow) = allow
-                && !recognizer.supported_entities().iter().any(|e| allow.contains(e))
-            {
-                continue;
-            }
-            results.extend(
-                recognizer
-                    .analyze(text, opts)
-                    .into_iter()
-                    .filter(|r| r.score >= opts.min_score),
-            );
-        }
+        let results = self
+            .recognizers
+            .iter()
+            .filter(|r| match &opts.entity_allow_list {
+                Some(allow) => r.supported_entities().iter().any(|e| allow.contains(e)),
+                None => true,
+            })
+            .flat_map(|r| r.analyze(text, opts))
+            .filter(|r| r.score >= opts.min_score)
+            .collect();
         overlap::resolve(results)
     }
 }

@@ -9,27 +9,26 @@ use super::HashAlgorithm;
 
 pub(crate) fn apply(candidate: &str, algorithm: HashAlgorithm, hash_key: Option<&[u8]>) -> String {
     let bytes = candidate.as_bytes();
-    let digest: Vec<u8> = match (algorithm, hash_key) {
-        (HashAlgorithm::Sha256, None) => Sha256::digest(bytes).to_vec(),
-        (HashAlgorithm::Sha512, None) => Sha512::digest(bytes).to_vec(),
+    match (algorithm, hash_key) {
+        (HashAlgorithm::Sha256, None) => to_hex(Sha256::digest(bytes).as_slice()),
+        (HashAlgorithm::Sha512, None) => to_hex(Sha512::digest(bytes).as_slice()),
         (HashAlgorithm::Sha256, Some(key)) => {
-            let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(key).expect("HMAC accepts variable-length keys");
+            let mut mac = Hmac::<Sha256>::new_from_slice(key).expect("HMAC accepts variable-length keys");
             mac.update(bytes);
-            mac.finalize().into_bytes().to_vec()
+            to_hex(mac.finalize().into_bytes().as_slice())
         }
         (HashAlgorithm::Sha512, Some(key)) => {
-            let mut mac = <Hmac<Sha512> as Mac>::new_from_slice(key).expect("HMAC accepts variable-length keys");
+            let mut mac = Hmac::<Sha512>::new_from_slice(key).expect("HMAC accepts variable-length keys");
             mac.update(bytes);
-            mac.finalize().into_bytes().to_vec()
+            to_hex(mac.finalize().into_bytes().as_slice())
         }
-    };
-    to_hex(&digest)
+    }
 }
 
 fn to_hex(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len() * 2);
     for b in bytes {
-        let _ = write!(out, "{b:02x}");
+        write!(out, "{b:02x}").expect("writing to a String is infallible");
     }
     out
 }

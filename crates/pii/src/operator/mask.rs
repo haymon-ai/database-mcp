@@ -12,27 +12,14 @@ pub(crate) fn apply(candidate: &str, masking_char: char, chars_to_mask: ChunkCou
         return candidate.to_owned();
     }
     let keep = total - to_mask;
-    let mut out = String::with_capacity(candidate.len());
-    if from_end {
-        // Keep prefix of `keep` code points, mask the rest.
-        for (i, ch) in candidate.chars().enumerate() {
-            if i < keep {
-                out.push(ch);
-            } else {
-                out.push(masking_char);
-            }
-        }
-    } else {
-        // Mask first `to_mask` code points, keep suffix.
-        for (i, ch) in candidate.chars().enumerate() {
-            if i < to_mask {
-                out.push(masking_char);
-            } else {
-                out.push(ch);
-            }
-        }
-    }
-    out
+    candidate
+        .chars()
+        .enumerate()
+        .map(|(i, ch)| {
+            let mask_this = if from_end { i >= keep } else { i < to_mask };
+            if mask_this { masking_char } else { ch }
+        })
+        .collect()
 }
 
 #[cfg(test)]

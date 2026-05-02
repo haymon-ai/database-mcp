@@ -44,19 +44,19 @@ pub struct AnonymizedText {
 
 /// Apply per-entity operators in a single forward pass.
 ///
-/// Steps: (1) collapse overlaps via [`overlap::resolve`]; (2) sort spans by `start`;
-/// (3) walk left-to-right, appending the gap between cursor and span verbatim, then
-/// the operator output. Time complexity is `O(text_len + Σ rewrites)`.
+/// Steps: (1) collapse overlaps via [`overlap::resolve`] — which returns survivors in
+/// start-ascending order; (2) walk left-to-right, appending the gap between cursor and
+/// span verbatim, then the operator output. Time complexity is
+/// `O(text_len + Σ rewrites)`.
 #[must_use]
 pub fn anonymize(text: &str, results: Vec<RecognizerResult>, config: &OperatorConfig) -> AnonymizedText {
-    let mut surviving = overlap::resolve(results);
+    let surviving = overlap::resolve(results);
     if surviving.is_empty() {
         return AnonymizedText {
             text: text.to_owned(),
             operations: Vec::new(),
         };
     }
-    surviving.sort_by_key(|r| r.start);
 
     let mut new_text = String::with_capacity(text.len());
     let mut operations = Vec::with_capacity(surviving.len());

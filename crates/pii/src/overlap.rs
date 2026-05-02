@@ -1,13 +1,16 @@
-//! Sweep-line overlap resolution for analyzer and anonymizer results.
+//! Overlap resolution for analyzer and anonymizer results.
 //!
 //! Algorithm per FR-011 / research §R6:
 //!
-//! 1. Sort by `(start, -score, registration_order)`.
-//! 2. Walk left to right; for each new span, compare against the current dominant
-//!    span. Drop strictly-contained duplicates; on cross-type overlap, higher
-//!    score wins; ties broken by longer span, then by recognizer-registration
-//!    order (the position the result already has in the input vector).
-//! 3. Emit survivors in original-position order.
+//! 1. Stable-sort by `(start, -score)`. Stable sort preserves the input order on
+//!    ties, which is the registration order the analyzer feeds in.
+//! 2. Walk left to right; for each candidate, compare against every kept survivor.
+//!    Drop strictly-contained duplicates; on cross-type overlap, higher score wins;
+//!    ties broken by longer span, then by registration order (already encoded by
+//!    the stable sort).
+//! 3. Emit survivors in start-ascending order (the natural order of the walk).
+
+use std::cmp::Ordering;
 
 use crate::result::RecognizerResult;
 
@@ -17,26 +20,12 @@ pub fn resolve(mut results: Vec<RecognizerResult>) -> Vec<RecognizerResult> {
     if results.len() <= 1 {
         return results;
     }
-    // Pair each result with its original index so we can break ties by registration order.
-    let mut indexed: Vec<(usize, RecognizerResult)> = results.drain(..).enumerate().collect();
+    results.sort_by(|a, b| a.start.cmp(&b.start).then_with(|| score_desc(a, b)));
 
-    indexed.sort_by(|a, b| {
-        a.1.start
-            .cmp(&b.1.start)
-            .then_with(|| {
-                b.1.score
-                    .as_f32()
-                    .partial_cmp(&a.1.score.as_f32())
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
-            .then_with(|| a.0.cmp(&b.0))
-    });
-
-    let mut survivors: Vec<(usize, RecognizerResult)> = Vec::with_capacity(indexed.len());
-
-    for (idx, candidate) in indexed {
+    let mut survivors: Vec<RecognizerResult> = Vec::with_capacity(results.len());
+    for candidate in results {
         let mut keep = true;
-        survivors.retain(|(_, existing)| {
+        survivors.retain(|existing| {
             if !overlaps(existing, &candidate) {
                 return true;
             }
@@ -49,12 +38,17 @@ pub fn resolve(mut results: Vec<RecognizerResult>) -> Vec<RecognizerResult> {
             }
         });
         if keep {
-            survivors.push((idx, candidate));
+            survivors.push(candidate);
         }
     }
+    survivors
+}
 
-    survivors.sort_by_key(|(idx, _)| *idx);
-    survivors.into_iter().map(|(_, r)| r).collect()
+fn score_desc(a: &RecognizerResult, b: &RecognizerResult) -> Ordering {
+    b.score
+        .as_f32()
+        .partial_cmp(&a.score.as_f32())
+        .unwrap_or(Ordering::Equal)
 }
 
 fn overlaps(a: &RecognizerResult, b: &RecognizerResult) -> bool {
@@ -77,26 +71,25 @@ fn dominate(existing: &RecognizerResult, candidate: &RecognizerResult) -> Domina
             return Dominance::Candidate;
         }
     }
-    // Cross-type or partial-overlap same-type: higher score wins.
+    // Cross-type or partial-overlap same-type: higher score wins; on score tie, longer
+    // span wins; on full tie, registration order is already enforced by the stable sort,
+    // so the earlier-registered survivor (already in `existing`) wins.
     let by_score = existing
         .score
         .as_f32()
         .partial_cmp(&candidate.score.as_f32())
-        .unwrap_or(std::cmp::Ordering::Equal);
-    match by_score {
-        std::cmp::Ordering::Greater => Dominance::Existing,
-        std::cmp::Ordering::Less => Dominance::Candidate,
-        std::cmp::Ordering::Equal => {
-            let existing_len = existing.end - existing.start;
-            let candidate_len = candidate.end - candidate.start;
-            match existing_len.cmp(&candidate_len) {
-                std::cmp::Ordering::Greater => Dominance::Existing,
-                std::cmp::Ordering::Less => Dominance::Candidate,
-                // Tie on score and length: registration order already enforced by sort,
-                // so the existing survivor wins.
-                std::cmp::Ordering::Equal => Dominance::Equal,
-            }
-        }
+        .unwrap_or(Ordering::Equal);
+    if by_score != Ordering::Equal {
+        return if by_score == Ordering::Greater {
+            Dominance::Existing
+        } else {
+            Dominance::Candidate
+        };
+    }
+    match (existing.end - existing.start).cmp(&(candidate.end - candidate.start)) {
+        Ordering::Greater => Dominance::Existing,
+        Ordering::Less => Dominance::Candidate,
+        Ordering::Equal => Dominance::Equal,
     }
 }
 

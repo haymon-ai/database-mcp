@@ -22,37 +22,33 @@ impl Validator for NoopValidator {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct LuhnValidator;
 
-impl LuhnValidator {
-    fn luhn_ok(digits: &[u8]) -> bool {
+impl Validator for LuhnValidator {
+    fn validate(&self, candidate: &str) -> ValidationOutcome {
+        // Buffer fits the longest valid card (19 digits); avoids a heap allocation.
+        let mut digits = [0u8; 19];
+        let mut len = 0usize;
+        for d in candidate.chars().filter_map(|c| c.to_digit(10)) {
+            if len == digits.len() {
+                return ValidationOutcome::Invalid;
+            }
+            digits[len] = u8::try_from(d).expect("base-10 digit fits in u8");
+            len += 1;
+        }
+        if !(12..=19).contains(&len) {
+            return ValidationOutcome::Invalid;
+        }
         let mut sum: u32 = 0;
-        let mut alt = false;
-        for &d in digits.iter().rev() {
+        for (i, &d) in digits[..len].iter().rev().enumerate() {
             let mut n = u32::from(d);
-            if alt {
+            if !i.is_multiple_of(2) {
                 n *= 2;
                 if n > 9 {
                     n -= 9;
                 }
             }
             sum += n;
-            alt = !alt;
         }
-        sum.is_multiple_of(10)
-    }
-}
-
-impl Validator for LuhnValidator {
-    fn validate(&self, candidate: &str) -> ValidationOutcome {
-        let digits: Vec<u8> = candidate
-            .chars()
-            .filter(|c| !matches!(*c, '-' | ' '))
-            .filter_map(|c| c.to_digit(10))
-            .map(|d| u8::try_from(d).expect("base-10 digit fits in u8"))
-            .collect();
-        if !(12..=19).contains(&digits.len()) {
-            return ValidationOutcome::Invalid;
-        }
-        if Self::luhn_ok(&digits) {
+        if sum.is_multiple_of(10) {
             ValidationOutcome::Valid
         } else {
             ValidationOutcome::Invalid
@@ -64,42 +60,43 @@ impl Validator for LuhnValidator {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct IbanValidator;
 
-impl IbanValidator {
-    /// Streaming mod-97: walk the rearranged IBAN character-by-character, folding into
-    /// `remainder` directly. No intermediate string, no chunked parse.
-    fn mod97_stream<I: Iterator<Item = char>>(chars: I) -> Option<u32> {
-        let mut remainder: u32 = 0;
-        for c in chars {
-            if let Some(d) = c.to_digit(10) {
-                remainder = (remainder * 10 + d) % 97;
-            } else if c.is_ascii_uppercase() {
-                let v = u32::from(c as u8 - b'A' + 10);
-                remainder = (remainder * 100 + v) % 97;
-            } else {
-                return None;
-            }
-        }
-        Some(remainder)
-    }
-}
-
 impl Validator for IbanValidator {
     fn validate(&self, candidate: &str) -> ValidationOutcome {
-        let cleaned: Vec<char> = candidate
-            .chars()
-            .filter(|c| !c.is_whitespace())
-            .map(|c| c.to_ascii_uppercase())
-            .collect();
-        if !(15..=34).contains(&cleaned.len()) {
+        // Longest legal IBAN is 34 chars; stack-buffer the cleaned form.
+        let mut buf = [0u8; 34];
+        let mut len = 0usize;
+        for c in candidate.chars().filter(|c| !c.is_whitespace()) {
+            let upper = c.to_ascii_uppercase();
+            if len == buf.len() || !upper.is_ascii() {
+                return ValidationOutcome::Invalid;
+            }
+            buf[len] = upper as u8;
+            len += 1;
+        }
+        if len < 15 {
             return ValidationOutcome::Invalid;
         }
-        // Rearranged = tail (chars 4..) followed by head (chars 0..4).
-        let rearranged = cleaned[4..].iter().chain(cleaned[..4].iter()).copied();
-        match Self::mod97_stream(rearranged) {
+        // Rearranged = tail (positions 4..len) followed by head (positions 0..4).
+        let rearranged = buf[4..len].iter().chain(buf[..4].iter()).copied();
+        match mod97(rearranged) {
             Some(1) => ValidationOutcome::Valid,
             _ => ValidationOutcome::Invalid,
         }
     }
+}
+
+fn mod97<I: Iterator<Item = u8>>(bytes: I) -> Option<u32> {
+    let mut remainder: u32 = 0;
+    for b in bytes {
+        if b.is_ascii_digit() {
+            remainder = (remainder * 10 + u32::from(b - b'0')) % 97;
+        } else if b.is_ascii_uppercase() {
+            remainder = (remainder * 100 + u32::from(b - b'A' + 10)) % 97;
+        } else {
+            return None;
+        }
+    }
+    Some(remainder)
 }
 
 /// US Social Security Number validator. Rejects reserved area / group / serial values
@@ -109,18 +106,21 @@ pub struct UsSsnValidator;
 
 impl Validator for UsSsnValidator {
     fn validate(&self, candidate: &str) -> ValidationOutcome {
-        let digits: Vec<u8> = candidate
-            .chars()
-            .filter_map(|c| c.to_digit(10))
-            .map(|d| u8::try_from(d).expect("base-10 digit fits in u8"))
-            .collect();
-        if digits.len() != 9 {
+        let mut digits = [0u32; 9];
+        let mut len = 0usize;
+        for d in candidate.chars().filter_map(|c| c.to_digit(10)) {
+            if len == digits.len() {
+                return ValidationOutcome::Invalid;
+            }
+            digits[len] = d;
+            len += 1;
+        }
+        if len != 9 {
             return ValidationOutcome::Invalid;
         }
-        let area = u32::from(digits[0]) * 100 + u32::from(digits[1]) * 10 + u32::from(digits[2]);
-        let group = u32::from(digits[3]) * 10 + u32::from(digits[4]);
-        let serial =
-            u32::from(digits[5]) * 1000 + u32::from(digits[6]) * 100 + u32::from(digits[7]) * 10 + u32::from(digits[8]);
+        let area = digits[0] * 100 + digits[1] * 10 + digits[2];
+        let group = digits[3] * 10 + digits[4];
+        let serial = digits[5] * 1000 + digits[6] * 100 + digits[7] * 10 + digits[8];
         if area == 0 || area == 666 || area >= 900 || group == 0 || serial == 0 {
             return ValidationOutcome::Invalid;
         }
