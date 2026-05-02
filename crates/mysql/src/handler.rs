@@ -6,7 +6,8 @@
 //! implementations call.
 
 use dbmcp_config::DatabaseConfig;
-use dbmcp_server::{Redactor, Server, server_info};
+use dbmcp_pii::Redactor;
+use dbmcp_server::{Server, server_info};
 use rmcp::RoleServer;
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::tool::ToolCallContext;

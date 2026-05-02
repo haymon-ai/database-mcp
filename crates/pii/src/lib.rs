@@ -29,6 +29,7 @@ pub mod operator;
 pub mod overlap;
 pub mod pattern;
 pub mod recognizer;
+pub mod redact;
 pub mod result;
 pub mod score;
 
@@ -40,6 +41,7 @@ pub use crate::pattern::Pattern;
 pub use crate::recognizer::{
     EntityType, PatternRecognizer, Recognizer, ValidationOutcome, Validator, deny_list_recognizer,
 };
+pub use crate::redact::{RedactionError, RedactionStats, Redactor};
 pub use crate::result::{AnalysisExplanation, OperatorResult, RecognizerResult};
 pub use crate::score::{MAX_SCORE, MIN_SCORE, Score};
 

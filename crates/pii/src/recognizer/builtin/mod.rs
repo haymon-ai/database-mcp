@@ -4,6 +4,7 @@
 //! `predefined_recognizers/generic` set, registered in this exact order so
 //! overlap-resolution tie-breaks (registration order) are deterministic.
 
+mod all;
 mod credit_card;
 mod crypto;
 mod email;
@@ -13,6 +14,7 @@ mod phone;
 mod url;
 mod us_ssn;
 
+pub use all::all;
 pub use credit_card::credit_card;
 pub use crypto::crypto;
 pub use email::email;
@@ -21,20 +23,3 @@ pub use ip::ip_address;
 pub use phone::phone_number;
 pub use url::url;
 pub use us_ssn::us_ssn;
-
-use super::PatternRecognizer;
-
-/// Return the eight v1 recognizers in registration order.
-#[must_use]
-pub fn all() -> Vec<PatternRecognizer> {
-    vec![
-        email(),
-        credit_card(),
-        iban(),
-        ip_address(),
-        url(),
-        phone_number(),
-        crypto(),
-        us_ssn(),
-    ]
-}

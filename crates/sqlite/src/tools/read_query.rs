@@ -6,7 +6,6 @@ use dbmcp_server::pagination::Pager;
 use dbmcp_server::types::ReadQueryResponse;
 
 use dbmcp_sql::Connection as _;
-use dbmcp_sql::SqlError;
 use dbmcp_sql::StatementKind;
 use dbmcp_sql::pagination::with_limit_offset;
 use dbmcp_sql::validation::validate_read_only;
@@ -83,7 +82,7 @@ impl ToolBase for ReadQueryTool {
 
 impl AsyncTool<SqliteHandler> for ReadQueryTool {
     async fn invoke(handler: &SqliteHandler, params: Self::Parameter) -> Result<Self::Output, Self::Error> {
-        Ok(handler.read_query(params).await?)
+        handler.read_query(params).await
     }
 }
 
@@ -104,7 +103,7 @@ impl SqliteHandler {
     pub async fn read_query(
         &self,
         ReadQueryRequest { query, cursor }: ReadQueryRequest,
-    ) -> Result<ReadQueryResponse, SqlError> {
+    ) -> Result<ReadQueryResponse, ErrorData> {
         let kind = validate_read_only(&query, &sqlparser::dialect::SQLiteDialect {})?;
 
         match kind {

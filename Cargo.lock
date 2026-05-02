@@ -518,6 +518,7 @@ name = "dbmcp-mysql"
 version = "0.9.1"
 dependencies = [
  "dbmcp-config",
+ "dbmcp-pii",
  "dbmcp-server",
  "dbmcp-sql",
  "moka",
@@ -538,9 +539,12 @@ dependencies = [
  "hmac",
  "proptest",
  "regex",
+ "rmcp",
  "serde",
+ "serde_json",
  "sha2",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -548,6 +552,7 @@ name = "dbmcp-postgres"
 version = "0.9.1"
 dependencies = [
  "dbmcp-config",
+ "dbmcp-pii",
  "dbmcp-server",
  "dbmcp-sql",
  "indexmap",
@@ -568,15 +573,11 @@ name = "dbmcp-server"
 version = "0.9.1"
 dependencies = [
  "base64",
- "dbmcp-pii",
- "dbmcp-sql",
  "indexmap",
  "rmcp",
  "schemars",
  "serde",
  "serde_json",
- "thiserror",
- "tracing",
 ]
 
 [[package]]
@@ -597,6 +598,7 @@ name = "dbmcp-sqlite"
 version = "0.9.1"
 dependencies = [
  "dbmcp-config",
+ "dbmcp-pii",
  "dbmcp-server",
  "dbmcp-sql",
  "rmcp",

@@ -36,10 +36,6 @@ pub enum SqlError {
     #[error("Database error: {0}")]
     Query(String),
 
-    /// PII redaction pipeline failed; request fails fail-closed.
-    #[error("PII redaction failed: {0}")]
-    Redaction(String),
-
     /// Table not found in database.
     #[error("Table not found: {0}")]
     TableNotFound(String),

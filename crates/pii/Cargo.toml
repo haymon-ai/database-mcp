@@ -10,9 +10,12 @@ repository.workspace = true
 [dependencies]
 hmac = { workspace = true }
 regex = { workspace = true }
+rmcp = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }

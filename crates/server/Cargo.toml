@@ -9,15 +9,11 @@ repository.workspace = true
 
 [dependencies]
 base64 = { workspace = true }
-dbmcp-pii = { workspace = true }
-dbmcp-sql = { workspace = true }
 indexmap = { workspace = true }
 rmcp = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-thiserror = { workspace = true }
-tracing = { workspace = true }
 
 [lints]
 workspace = true

@@ -1,7 +1,7 @@
 //! PII redaction for query tool response payloads.
 //!
-//! Walks each row's top-level string scalars through the [`dbmcp_pii`]
-//! analyzer plus the default per-entity operator (`Replace { "<TYPE>" }`),
+//! Walks each row's top-level string scalars through the [`Analyzer`]
+//! plus the default per-entity operator (`Replace { "<TYPE>" }`),
 //! mutating the input slice in place. Object keys, non-string values,
 //! and nested structures are passed through verbatim.
 //!
@@ -16,9 +16,9 @@ use std::collections::BTreeMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
-use dbmcp_pii::{AnalyzeOptions, Analyzer, OperatorConfig, anonymize};
-use dbmcp_sql::SqlError;
 use serde_json::Value;
+
+use crate::{AnalyzeOptions, Analyzer, OperatorConfig, anonymize};
 
 /// Errors produced by [`Redactor::apply`].
 #[derive(Debug, thiserror::Error)]
@@ -28,11 +28,9 @@ pub enum RedactionError {
     Internal(String),
 }
 
-impl From<RedactionError> for SqlError {
+impl From<RedactionError> for rmcp::model::ErrorData {
     fn from(e: RedactionError) -> Self {
-        match e {
-            RedactionError::Internal(s) => Self::Redaction(s),
-        }
+        Self::internal_error(e.to_string(), None)
     }
 }
 
@@ -140,7 +138,7 @@ impl Redactor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dbmcp_pii::{EntityType, Recognizer, RecognizerResult};
+    use crate::{EntityType, Recognizer, RecognizerResult};
     use serde_json::json;
 
     fn email_row() -> Value {
@@ -230,16 +228,6 @@ mod tests {
         let err = r.apply(&mut rows).expect_err("must fail-closed");
         match err {
             RedactionError::Internal(msg) => assert!(msg.contains("panicked")),
-        }
-    }
-
-    #[test]
-    fn redaction_error_converts_to_sql_error() {
-        let err = RedactionError::Internal("boom".into());
-        let sql_err: SqlError = err.into();
-        match sql_err {
-            SqlError::Redaction(s) => assert_eq!(s, "boom"),
-            other => panic!("unexpected SqlError variant: {other:?}"),
         }
     }
 }

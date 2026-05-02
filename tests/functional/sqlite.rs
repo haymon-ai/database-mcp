@@ -1892,9 +1892,7 @@ async fn explain_query_redacts_when_enabled() {
 
 #[tokio::test]
 async fn redaction_failure_returns_no_rows() {
-    use dbmcp_pii::{AnalyzeOptions, Analyzer, EntityType, Recognizer, RecognizerResult};
-    use dbmcp_server::Redactor;
-    use dbmcp_sql::SqlError;
+    use dbmcp_pii::{AnalyzeOptions, Analyzer, EntityType, Recognizer, RecognizerResult, Redactor};
 
     #[derive(Debug)]
     struct PanickingRecognizer;
@@ -1920,8 +1918,9 @@ async fn redaction_failure_returns_no_rows() {
         cursor: None,
     };
     let err = handler.read_query(select).await.expect_err("must fail-closed");
-    match err {
-        SqlError::Redaction(msg) => assert!(msg.contains("panicked"), "msg: {msg}"),
-        other => panic!("unexpected SqlError variant: {other:?}"),
-    }
+    assert!(
+        err.message.contains("panicked"),
+        "expected ErrorData message to mention panic, got: {}",
+        err.message
+    );
 }
