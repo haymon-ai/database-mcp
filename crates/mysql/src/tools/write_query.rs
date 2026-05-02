@@ -86,7 +86,10 @@ impl MysqlHandler {
     pub async fn write_query(&self, QueryRequest { query, database }: QueryRequest) -> Result<QueryResponse, SqlError> {
         let database = database.as_deref().map(str::trim).filter(|s| !s.is_empty());
 
-        let rows = self.connection.fetch_json(query.as_str(), database).await?;
+        let mut rows = self.connection.fetch_json(query.as_str(), database).await?;
+        if let Some(r) = &self.redactor {
+            r.apply(&mut rows)?;
+        }
 
         Ok(QueryResponse { rows })
     }

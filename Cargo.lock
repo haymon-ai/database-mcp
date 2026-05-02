@@ -486,8 +486,10 @@ dependencies = [
  "clap",
  "dbmcp-config",
  "dbmcp-mysql",
+ "dbmcp-pii",
  "dbmcp-postgres",
  "dbmcp-server",
+ "dbmcp-sql",
  "dbmcp-sqlite",
  "indexmap",
  "insta",
@@ -566,11 +568,15 @@ name = "dbmcp-server"
 version = "0.9.1"
 dependencies = [
  "base64",
+ "dbmcp-pii",
+ "dbmcp-sql",
  "indexmap",
  "rmcp",
  "schemars",
  "serde",
  "serde_json",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]

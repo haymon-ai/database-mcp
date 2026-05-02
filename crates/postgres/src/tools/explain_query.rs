@@ -114,7 +114,10 @@ impl PostgresHandler {
             format!("EXPLAIN (FORMAT JSON) {query}")
         };
 
-        let rows = self.connection.fetch_json(explain_sql.as_str(), database).await?;
+        let mut rows = self.connection.fetch_json(explain_sql.as_str(), database).await?;
+        if let Some(r) = &self.redactor {
+            r.apply(&mut rows)?;
+        }
 
         Ok(QueryResponse { rows })
     }

@@ -85,7 +85,10 @@ impl SqliteHandler {
     ///
     /// Returns [`SqlError`] if the query fails.
     pub async fn write_query(&self, QueryRequest { query }: QueryRequest) -> Result<QueryResponse, SqlError> {
-        let rows = self.connection.fetch_json(query.as_str(), None).await?;
+        let mut rows = self.connection.fetch_json(query.as_str(), None).await?;
+        if let Some(r) = &self.redactor {
+            r.apply(&mut rows)?;
+        }
         Ok(QueryResponse { rows })
     }
 }
