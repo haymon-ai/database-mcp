@@ -1,4 +1,4 @@
-//! Built-in pattern recognizers shipped with `feature = "builtin"`.
+//! Built-in pattern recognizers shipped by default.
 //!
 //! Eight recognizers, ported from Presidio's language-agnostic
 //! `predefined_recognizers/generic` set, registered in this exact order so

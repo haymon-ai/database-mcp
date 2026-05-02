@@ -1,32 +1,22 @@
 //! Analyzer engine: registry + entry point + analyze-time options.
 
 use std::collections::HashSet;
-use std::time::Duration;
 
 use crate::overlap;
 use crate::recognizer::{EntityType, Recognizer};
 use crate::result::RecognizerResult;
-use crate::score::{MIN_SCORE, Score};
+use crate::score::Score;
 
 /// Per-call overrides handed to [`Analyzer::analyze`].
-#[derive(Debug, Clone)]
+///
+/// `min_score` defaults to [`MIN_SCORE`] (via [`Score::default`]); set higher to
+/// drop low-confidence matches before overlap resolution.
+#[derive(Debug, Clone, Default)]
 pub struct AnalyzeOptions {
     /// Restrict the engine to recognizers whose `supported_entities` intersect this set.
     pub entity_allow_list: Option<HashSet<EntityType>>,
     /// Drop results whose score is below this floor before overlap resolution.
     pub min_score: Score,
-    /// Per-pattern execution-time budget; `Fancy` patterns that exceed it are skipped.
-    pub pattern_timeout: Duration,
-}
-
-impl Default for AnalyzeOptions {
-    fn default() -> Self {
-        Self {
-            entity_allow_list: None,
-            min_score: MIN_SCORE,
-            pattern_timeout: Duration::from_millis(10),
-        }
-    }
 }
 
 /// Registry of recognizers and the public entry point for PII analysis.
@@ -37,8 +27,12 @@ pub struct Analyzer {
 
 impl std::fmt::Debug for Analyzer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let names: Vec<&str> = self.recognizers.iter().map(|r| r.name()).collect();
-        f.debug_struct("Analyzer").field("recognizers", &names).finish()
+        f.debug_struct("Analyzer")
+            .field(
+                "recognizers",
+                &self.recognizers.iter().map(|r| r.name()).collect::<Vec<_>>(),
+            )
+            .finish()
     }
 }
 
@@ -50,14 +44,13 @@ impl Analyzer {
     }
 
     /// Build an analyzer pre-loaded with the eight v1 default recognizers.
-    #[cfg(feature = "builtin")]
     #[must_use]
     pub fn with_defaults() -> Self {
-        let mut a = Self::empty();
-        for r in crate::recognizer::builtin::all() {
-            a.recognizers.push(Box::new(r));
-        }
-        a
+        let recognizers = crate::recognizer::builtin::all()
+            .into_iter()
+            .map(|r| Box::new(r) as Box<dyn Recognizer>)
+            .collect();
+        Self { recognizers }
     }
 
     /// Register a recognizer at the end of the registry.
@@ -69,25 +62,21 @@ impl Analyzer {
     /// Analyze `text`, returning merged + overlap-resolved results.
     #[must_use]
     pub fn analyze(&self, text: &str, opts: &AnalyzeOptions) -> Vec<RecognizerResult> {
-        let mut results: Vec<RecognizerResult> = Vec::new();
+        let allow = opts.entity_allow_list.as_ref();
+        let mut results = Vec::new();
         for recognizer in &self.recognizers {
-            if !recognizer_in_allow_list(recognizer.as_ref(), opts.entity_allow_list.as_ref()) {
+            if let Some(allow) = allow
+                && !recognizer.supported_entities().iter().any(|e| allow.contains(e))
+            {
                 continue;
             }
-            for r in recognizer.analyze(text, opts) {
-                if r.score < opts.min_score {
-                    continue;
-                }
-                results.push(r);
-            }
+            results.extend(
+                recognizer
+                    .analyze(text, opts)
+                    .into_iter()
+                    .filter(|r| r.score >= opts.min_score),
+            );
         }
         overlap::resolve(results)
     }
-}
-
-fn recognizer_in_allow_list(recognizer: &dyn Recognizer, allow: Option<&HashSet<EntityType>>) -> bool {
-    let Some(allow) = allow else {
-        return true;
-    };
-    recognizer.supported_entities().iter().any(|e| allow.contains(e))
 }

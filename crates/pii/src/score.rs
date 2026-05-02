@@ -9,8 +9,9 @@ pub const MAX_SCORE: Score = Score(1.0);
 pub const MIN_SCORE: Score = Score(0.0);
 
 /// Confidence score in `[0.0, 1.0]`; non-finite or out-of-range values are rejected at construction.
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+///
+/// `Default` returns [`MIN_SCORE`] (`0.0`) — the inert floor used by [`crate::AnalyzeOptions`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize)]
 pub struct Score(f32);
 
 impl Score {
@@ -32,6 +33,20 @@ impl Score {
     #[must_use]
     pub const fn as_f32(self) -> f32 {
         self.0
+    }
+
+    /// Compile-time-checked constructor for static literals; panics on invalid input.
+    ///
+    /// Use only with constant literals where the validity is obvious by inspection
+    /// (e.g. `Score::from_static(0.5)`). For dynamic input prefer [`Score::new`].
+    ///
+    /// # Panics
+    ///
+    /// Panics when `value` is not finite or outside `[0.0, 1.0]`.
+    #[must_use]
+    #[track_caller]
+    pub fn from_static(value: f32) -> Self {
+        Self::new(value).expect("Score::from_static called with out-of-range or non-finite value")
     }
 }
 

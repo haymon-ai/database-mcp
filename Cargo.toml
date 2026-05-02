@@ -35,7 +35,6 @@ sqlx-json = { path = "crates/sqlx-json", version = "0.9.1" }
 axum = "0.8"
 base64 = "0.22"
 clap = { version = "4", features = ["derive", "env"] }
-fancy-regex = "0.13"
 hmac = "0.12"
 indexmap = { version = "2", features = ["serde"] }
 mimalloc = "0.1"

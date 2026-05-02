@@ -36,29 +36,18 @@ pub fn resolve(mut results: Vec<RecognizerResult>) -> Vec<RecognizerResult> {
 
     for (idx, candidate) in indexed {
         let mut keep = true;
-        let mut to_remove: Vec<usize> = Vec::new();
-        for (i, (_, existing)) in survivors.iter().enumerate() {
+        survivors.retain(|(_, existing)| {
             if !overlaps(existing, &candidate) {
-                continue;
+                return true;
             }
             match dominate(existing, &candidate) {
-                Dominance::Existing => {
+                Dominance::Existing | Dominance::Equal => {
                     keep = false;
-                    break;
+                    true
                 }
-                Dominance::Candidate => {
-                    to_remove.push(i);
-                }
-                Dominance::Equal => {
-                    // Same span and tie on every criterion: drop the duplicate.
-                    keep = false;
-                    break;
-                }
+                Dominance::Candidate => false,
             }
-        }
-        for i in to_remove.into_iter().rev() {
-            survivors.swap_remove(i);
-        }
+        });
         if keep {
             survivors.push((idx, candidate));
         }

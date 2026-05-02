@@ -14,7 +14,7 @@ pub fn url() -> PatternRecognizer {
     let pattern = Pattern::new(
         "URL (http/https)",
         r"\bhttps?://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+\b",
-        Score::new(0.5).expect("0.5 in range"),
+        Score::from_static(0.5),
     )
     .expect("static URL pattern compiles");
     PatternRecognizer::new(entity::URL, vec![pattern])

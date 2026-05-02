@@ -1,24 +1,25 @@
 //! Error types for the `dbmcp-pii` crate.
 
-use std::error::Error as StdError;
-
 use thiserror::Error;
 
 /// Errors that surface when constructing a [`crate::Pattern`] or [`crate::Score`].
 #[derive(Debug, Error)]
 pub enum PatternError {
-    /// Regex source failed to compile under the requested [`crate::PatternKind`].
-    #[error("invalid regex: {source}")]
-    InvalidRegex {
-        /// Underlying compiler error.
-        source: Box<dyn StdError + Send + Sync>,
-    },
+    /// `regex`-engine compile error.
+    #[error("invalid regex: {0}")]
+    InvalidRegex(Box<regex::Error>),
     /// Score was non-finite or outside `[0.0, 1.0]`.
     #[error("invalid score: {value} (must be a finite value in [0.0, 1.0])")]
     InvalidScore {
         /// Offending input value.
         value: f32,
     },
+}
+
+impl PatternError {
+    pub(crate) fn from_regex(e: regex::Error) -> Self {
+        Self::InvalidRegex(Box::new(e))
+    }
 }
 
 /// Errors that surface when constructing a [`crate::PatternRecognizer`] or a deny-list helper.

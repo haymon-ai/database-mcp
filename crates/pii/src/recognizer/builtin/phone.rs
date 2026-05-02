@@ -15,7 +15,7 @@ use crate::score::Score;
 /// Panics only if any bundled regex source or score constant is rejected at construction.
 #[must_use]
 pub fn phone_number() -> PatternRecognizer {
-    let s = Score::new(0.4).expect("0.4 in range");
+    let s = Score::from_static(0.4);
     let patterns = vec![
         Pattern::new("E.164", r"\+\d{8,15}\b", s).expect("E.164 compiles"),
         Pattern::new("US", r"\b(?:\+?1[\s-]?)?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{4}\b", s).expect("US compiles"),

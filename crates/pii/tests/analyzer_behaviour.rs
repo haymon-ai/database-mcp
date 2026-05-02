@@ -2,7 +2,6 @@
 //! (`AnalyzeOptions` overrides), CT-006 (overlap rules).
 
 use std::collections::HashSet;
-use std::time::Duration;
 
 use dbmcp_pii::{AnalyzeOptions, Analyzer, MAX_SCORE, Score, entity};
 
@@ -66,18 +65,6 @@ fn ct_005_allow_list_filters_recognizers() {
         results.iter().all(|r| r.entity_type == entity::EMAIL_ADDRESS),
         "got {results:?}"
     );
-}
-
-#[test]
-fn ct_005_pattern_timeout_overridable() {
-    let analyzer = Analyzer::with_defaults();
-    let opts = AnalyzeOptions {
-        pattern_timeout: Duration::from_secs(2),
-        ..AnalyzeOptions::default()
-    };
-    // Sanity: still detects emails when timeout is loose.
-    let results = analyzer.analyze("email a@b.com", &opts);
-    assert!(results.iter().any(|r| r.entity_type == entity::EMAIL_ADDRESS));
 }
 
 #[test]

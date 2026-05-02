@@ -2,15 +2,14 @@
 
 use std::collections::HashMap;
 
-use dbmcp_pii::{AnalyzeOptions, Analyzer, Anonymizer, ChunkCount, HashAlgorithm, Operator, OperatorConfig, entity};
+use dbmcp_pii::{AnalyzeOptions, Analyzer, ChunkCount, HashAlgorithm, Operator, OperatorConfig, anonymize, entity};
 
 #[test]
 fn us2_1_default_replace_rewrite() {
     let analyzer = Analyzer::with_defaults();
-    let anonymizer = Anonymizer::new();
     let text = "ping me at jane.doe@example.com";
     let results = analyzer.analyze(text, &AnalyzeOptions::default());
-    let out = anonymizer.anonymize(text, results, &OperatorConfig::default());
+    let out = anonymize(text, results, &OperatorConfig::default());
     assert_eq!(out.text, "ping me at <EMAIL_ADDRESS>");
     assert_eq!(out.operations.len(), 1);
     let op = &out.operations[0];
@@ -21,7 +20,6 @@ fn us2_1_default_replace_rewrite() {
 #[test]
 fn us2_2_mask_chars_to_mask_12_from_end_true() {
     let analyzer = Analyzer::with_defaults();
-    let anonymizer = Anonymizer::new();
     let text = "card 4111-1111-1111-1111";
     let results = analyzer.analyze(text, &AnalyzeOptions::default());
     let mut per_entity = HashMap::new();
@@ -35,9 +33,9 @@ fn us2_2_mask_chars_to_mask_12_from_end_true() {
     );
     let config = OperatorConfig {
         per_entity,
-        default: Operator::default_for(&entity::CREDIT_CARD),
+        ..OperatorConfig::default()
     };
-    let out = anonymizer.anonymize(text, results, &config);
+    let out = anonymize(text, results, &config);
     assert!(out.text.starts_with("card 4111-11"), "got {:?}", out.text);
     assert!(out.text.ends_with("************"), "got {:?}", out.text);
     let cc = out
@@ -45,7 +43,7 @@ fn us2_2_mask_chars_to_mask_12_from_end_true() {
         .iter()
         .find(|o| o.entity_type == entity::CREDIT_CARD)
         .expect("CC op");
-    assert_eq!(&out.text[cc.new_start..cc.new_end].chars().count(), &19);
+    assert_eq!(out.text[cc.new_start..cc.new_end].chars().count(), 19);
 }
 
 #[test]
@@ -73,8 +71,7 @@ fn us2_3_overlap_collapses_to_single_op() {
     };
 
     let results = vec![mk("LOW", 2, 6, s), mk("HIGH", 3, 7, high)];
-    let anonymizer = Anonymizer::new();
-    let out = anonymizer.anonymize(text, results, &OperatorConfig::default());
+    let out = anonymize(text, results, &OperatorConfig::default());
     assert_eq!(out.operations.len(), 1);
     assert_eq!(out.operations[0].entity_type.as_str(), "HIGH");
     assert!(out.text.contains("<HIGH>"), "expected HIGH placeholder: {:?}", out.text);
@@ -84,7 +81,6 @@ fn us2_3_overlap_collapses_to_single_op() {
 fn us2_4_hash_deterministic_per_key_tuple() {
     // Acceptance scenario US2-#4 covered by anonymizer integration: the same input yields
     // the same digest across two runs.
-    let anonymizer = Anonymizer::new();
     let text = "user@example.com";
 
     let results_call = || {
@@ -99,10 +95,10 @@ fn us2_4_hash_deterministic_per_key_tuple() {
     );
     let config = OperatorConfig {
         per_entity,
-        default: Operator::default_for(&entity::EMAIL_ADDRESS),
+        ..OperatorConfig::default()
     };
 
-    let a = anonymizer.anonymize(text, results_call(), &config);
-    let b = anonymizer.anonymize(text, results_call(), &config);
+    let a = anonymize(text, results_call(), &config);
+    let b = anonymize(text, results_call(), &config);
     assert_eq!(a.text, b.text);
 }

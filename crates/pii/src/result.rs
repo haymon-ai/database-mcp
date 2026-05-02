@@ -6,8 +6,7 @@ use crate::recognizer::{EntityType, ValidationOutcome};
 use crate::score::Score;
 
 /// One detected PII span with audit trail.
-#[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RecognizerResult {
     /// Entity type emitted by the recognizer.
     pub entity_type: EntityType,
@@ -22,8 +21,7 @@ pub struct RecognizerResult {
 }
 
 /// Audit metadata for a single [`RecognizerResult`].
-#[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct AnalysisExplanation {
     /// Recognizer that emitted the result.
     pub recognizer_name: Cow<'static, str>,
@@ -38,8 +36,7 @@ pub struct AnalysisExplanation {
 }
 
 /// Audit entry emitted by the anonymizer for one applied operator.
-#[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct OperatorResult {
     /// Entity type from the source [`RecognizerResult`].
     pub entity_type: EntityType,

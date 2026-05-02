@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 
 use dbmcp_pii::{
-    AnalysisExplanation, Anonymizer, EntityType, OperatorConfig, RecognizerResult, Score, ValidationOutcome,
+    AnalysisExplanation, EntityType, OperatorConfig, RecognizerResult, Score, ValidationOutcome, anonymize,
 };
 use proptest::prelude::*;
 
@@ -45,14 +45,14 @@ proptest! {
         start in 0usize..40,
         len in 1usize..40,
     ) {
-        let anonymizer = Anonymizer::new();
+
         let bounded_start = align_to_char_boundary(&text, start);
         let bounded_end = align_to_char_boundary(&text, bounded_start + len);
         if bounded_end <= bounded_start {
             return Ok(());
         }
         let r = make_result("X", bounded_start, bounded_end);
-        let out = anonymizer.anonymize(&text, vec![r], &OperatorConfig::default());
+        let out = anonymize(&text, vec![r], &OperatorConfig::default());
         for op in &out.operations {
             prop_assert!(out.text.is_char_boundary(op.new_start));
             prop_assert!(out.text.is_char_boundary(op.new_end));
@@ -63,11 +63,10 @@ proptest! {
 
 #[test]
 fn outside_regions_byte_equal_to_input() {
-    let anonymizer = Anonymizer::new();
     let text = "hello WORLD goodbye";
     // Replace WORLD only.
     let r = make_result("WORD", 6, 11);
-    let out = anonymizer.anonymize(text, vec![r], &OperatorConfig::default());
+    let out = anonymize(text, vec![r], &OperatorConfig::default());
     // Prefix and suffix in the rewritten text must match the input outside the span.
     assert!(out.text.starts_with("hello "));
     assert!(out.text.ends_with(" goodbye"));
@@ -75,11 +74,10 @@ fn outside_regions_byte_equal_to_input() {
 
 #[test]
 fn multiple_non_overlapping_spans_rewrite_in_position_order() {
-    let anonymizer = Anonymizer::new();
     let text = "aaa BBB ccc DDD eee";
     let r1 = make_result("X", 4, 7);
     let r2 = make_result("Y", 12, 15);
-    let out = anonymizer.anonymize(text, vec![r1, r2], &OperatorConfig::default());
+    let out = anonymize(text, vec![r1, r2], &OperatorConfig::default());
     assert_eq!(out.operations.len(), 2);
     assert!(out.operations[0].original_start < out.operations[1].original_start);
     assert_eq!(&out.text[out.operations[0].new_start..out.operations[0].new_end], "<X>");

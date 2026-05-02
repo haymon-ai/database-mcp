@@ -10,14 +10,14 @@ use crate::score::Score;
 ///
 /// # Panics
 ///
-/// Panics only if the bundled regex source or the score constant is rejected at
-/// construction; both are unit-tested at build time.
+/// Panics only if the bundled regex source or score literal is rejected at construction;
+/// both are unit-tested.
 #[must_use]
 pub fn email() -> PatternRecognizer {
     let pattern = Pattern::new(
         "Email (Medium)",
         r"\b[A-Za-z0-9!#$%&'*+\-/=?^_`{|}~]+(?:\.[A-Za-z0-9!#$%&'*+\-/=?^_`{|}~]+)*@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+\b",
-        Score::new(0.5).expect("0.5 in range"),
+        Score::from_static(0.5),
     )
     .expect("static email pattern compiles");
     PatternRecognizer::new(entity::EMAIL_ADDRESS, vec![pattern])

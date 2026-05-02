@@ -7,12 +7,9 @@ use crate::recognizer::EntityType;
 
 mod hash;
 mod mask;
-mod redact;
-mod replace;
 
 /// Hash algorithm for [`Operator::Hash`].
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum HashAlgorithm {
     /// SHA-256, 256-bit digest.
     Sha256,
@@ -21,8 +18,7 @@ pub enum HashAlgorithm {
 }
 
 /// Mask coverage parameter for [`Operator::Mask`].
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ChunkCount {
     /// Mask the entire span, length-preserving.
     All,
@@ -31,8 +27,7 @@ pub enum ChunkCount {
 }
 
 /// Algorithm used to rewrite a single PII span.
-#[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Operator {
     /// Replace the span with a fixed literal.
     Replace {
@@ -63,8 +58,7 @@ pub enum Operator {
 }
 
 /// Tag-only kind enum for audit-trail use.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum OperatorKind {
     /// [`Operator::Replace`].
     Replace,
@@ -109,7 +103,7 @@ impl Operator {
 
     /// Tag describing this operator's variant.
     #[must_use]
-    pub fn kind(&self) -> OperatorKind {
+    pub const fn kind(&self) -> OperatorKind {
         match self {
             Self::Replace { .. } => OperatorKind::Replace,
             Self::Mask { .. } => OperatorKind::Mask,
@@ -121,14 +115,14 @@ impl Operator {
     /// Apply the operator to one matched span.
     pub(crate) fn apply(&self, candidate: &str) -> String {
         match self {
-            Self::Replace { new_value } => replace::apply(new_value),
+            Self::Replace { new_value } => new_value.as_ref().to_owned(),
             Self::Mask {
                 masking_char,
                 chars_to_mask,
                 from_end,
-            } => mask::apply(candidate, *masking_char, chars_to_mask, *from_end),
-            Self::Redact => redact::apply(),
-            Self::Hash { algorithm, hash_key } => hash::apply(candidate, algorithm, hash_key.as_deref()),
+            } => mask::apply(candidate, *masking_char, *chars_to_mask, *from_end),
+            Self::Redact => String::new(),
+            Self::Hash { algorithm, hash_key } => hash::apply(candidate, *algorithm, hash_key.as_deref()),
         }
     }
 }

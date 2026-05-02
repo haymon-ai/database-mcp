@@ -1,23 +1,21 @@
 //! Generic pattern-driven recognizer with optional checksum/parser validator.
 
 use std::borrow::Cow;
-use std::sync::Arc;
+use std::slice;
 
 use super::{EntityType, NoopValidator, Recognizer, ValidationOutcome, Validator};
 use crate::analyzer::AnalyzeOptions;
 use crate::error::RecognizerError;
 use crate::pattern::Pattern;
 use crate::result::{AnalysisExplanation, RecognizerResult};
-use crate::score::{MAX_SCORE, Score};
-use crate::timeout::{self, Outcome};
+use crate::score::{MAX_SCORE, MIN_SCORE};
 
 /// Pattern-driven recognizer used by every built-in entity type and by user-supplied custom recognizers.
 pub struct PatternRecognizer {
     entity_type: EntityType,
     name: Cow<'static, str>,
     patterns: Vec<Pattern>,
-    supported: Vec<EntityType>,
-    validator: Arc<dyn Validator>,
+    validator: Box<dyn Validator>,
 }
 
 impl std::fmt::Debug for PatternRecognizer {
@@ -41,13 +39,11 @@ impl PatternRecognizer {
             return Err(RecognizerError::EmptyPatternList);
         }
         let name = Cow::Owned(format!("{}Recognizer", entity_type.as_str()));
-        let supported = vec![entity_type.clone()];
         Ok(Self {
             entity_type,
             name,
             patterns,
-            supported,
-            validator: Arc::new(NoopValidator),
+            validator: Box::new(NoopValidator),
         })
     }
 
@@ -64,15 +60,12 @@ impl PatternRecognizer {
     where
         V: Validator + 'static,
     {
-        self.validator = Arc::new(validator);
+        self.validator = Box::new(validator);
         self
     }
 
     fn build_result(&self, pattern: &Pattern, start: usize, end: usize, text: &str) -> Option<RecognizerResult> {
-        if start == end {
-            return None;
-        }
-        if !text.is_char_boundary(start) || !text.is_char_boundary(end) {
+        if start >= end || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
             return None;
         }
         let candidate = &text[start..end];
@@ -83,22 +76,21 @@ impl PatternRecognizer {
             ValidationOutcome::Invalid => return None,
             ValidationOutcome::Unknown => original_score,
         };
-        if final_score == Score::new(0.0).expect("0.0 is in range") {
+        if final_score == MIN_SCORE {
             return None;
         }
-        let explanation = AnalysisExplanation {
-            recognizer_name: self.name.clone(),
-            pattern_name: Some(Cow::Owned(pattern.name().to_owned())),
-            original_score,
-            validation,
-            final_score,
-        };
         Some(RecognizerResult {
             entity_type: self.entity_type.clone(),
             start,
             end,
             score: final_score,
-            explanation,
+            explanation: AnalysisExplanation {
+                recognizer_name: self.name.clone(),
+                pattern_name: Some(Cow::Owned(pattern.name().to_owned())),
+                original_score,
+                validation,
+                final_score,
+            },
         })
     }
 }
@@ -109,19 +101,14 @@ impl Recognizer for PatternRecognizer {
     }
 
     fn supported_entities(&self) -> &[EntityType] {
-        &self.supported
+        slice::from_ref(&self.entity_type)
     }
 
-    fn analyze(&self, text: &str, opts: &AnalyzeOptions) -> Vec<RecognizerResult> {
-        let mut out: Vec<RecognizerResult> = Vec::new();
+    fn analyze(&self, text: &str, _opts: &AnalyzeOptions) -> Vec<RecognizerResult> {
+        let mut out = Vec::new();
         for pattern in &self.patterns {
-            let outcome = timeout::run(pattern, text, opts.pattern_timeout);
-            let spans = match outcome {
-                Outcome::Matches(s) => s,
-                Outcome::TimedOut | Outcome::CompileError => continue,
-            };
-            for span in spans {
-                if let Some(r) = self.build_result(pattern, span.start, span.end, text) {
+            for m in pattern.compiled.find_iter(text) {
+                if let Some(r) = self.build_result(pattern, m.start(), m.end(), text) {
                     out.push(r);
                 }
             }

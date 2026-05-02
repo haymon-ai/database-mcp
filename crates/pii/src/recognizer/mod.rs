@@ -9,18 +9,15 @@ mod deny_list;
 mod pattern_recognizer;
 mod validators;
 
-#[cfg(feature = "builtin")]
 pub mod builtin;
-#[cfg(feature = "builtin")]
 pub mod entity;
 
 pub use deny_list::deny_list_recognizer;
 pub use pattern_recognizer::PatternRecognizer;
-pub use validators::{IbanValidator, IpAddressValidator, LuhnValidator, NoopValidator};
+pub use validators::{IbanValidator, IpAddressValidator, LuhnValidator, NoopValidator, UsSsnValidator};
 
 /// Tag identifying the kind of PII a recognizer emits.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct EntityType(pub(crate) Cow<'static, str>);
 
 impl EntityType {
@@ -44,8 +41,7 @@ impl std::fmt::Display for EntityType {
 }
 
 /// Outcome of running a [`Validator`] on a candidate match.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ValidationOutcome {
     /// Validator confirmed the candidate; promote to `MAX_SCORE`.
     Valid,

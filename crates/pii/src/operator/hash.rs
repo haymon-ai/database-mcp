@@ -1,42 +1,37 @@
 //! `Hash` operator: SHA-256 / SHA-512, optional HMAC keying.
 
+use std::fmt::Write;
+
 use hmac::{Hmac, Mac};
 use sha2::{Digest, Sha256, Sha512};
 
 use super::HashAlgorithm;
 
-pub(crate) fn apply(candidate: &str, algorithm: &HashAlgorithm, hash_key: Option<&[u8]>) -> String {
-    match (algorithm, hash_key) {
-        (HashAlgorithm::Sha256, None) => hex(&Sha256::digest(candidate.as_bytes())),
-        (HashAlgorithm::Sha512, None) => hex(&Sha512::digest(candidate.as_bytes())),
+pub(crate) fn apply(candidate: &str, algorithm: HashAlgorithm, hash_key: Option<&[u8]>) -> String {
+    let bytes = candidate.as_bytes();
+    let digest: Vec<u8> = match (algorithm, hash_key) {
+        (HashAlgorithm::Sha256, None) => Sha256::digest(bytes).to_vec(),
+        (HashAlgorithm::Sha512, None) => Sha512::digest(bytes).to_vec(),
         (HashAlgorithm::Sha256, Some(key)) => {
             let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(key).expect("HMAC accepts variable-length keys");
-            mac.update(candidate.as_bytes());
-            hex(&mac.finalize().into_bytes())
+            mac.update(bytes);
+            mac.finalize().into_bytes().to_vec()
         }
         (HashAlgorithm::Sha512, Some(key)) => {
             let mut mac = <Hmac<Sha512> as Mac>::new_from_slice(key).expect("HMAC accepts variable-length keys");
-            mac.update(candidate.as_bytes());
-            hex(&mac.finalize().into_bytes())
+            mac.update(bytes);
+            mac.finalize().into_bytes().to_vec()
         }
-    }
+    };
+    to_hex(&digest)
 }
 
-fn hex(bytes: &[u8]) -> String {
+fn to_hex(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len() * 2);
     for b in bytes {
-        out.push(nibble(b >> 4));
-        out.push(nibble(b & 0x0f));
+        let _ = write!(out, "{b:02x}");
     }
     out
-}
-
-fn nibble(n: u8) -> char {
-    match n {
-        0..=9 => (b'0' + n) as char,
-        10..=15 => (b'a' + (n - 10)) as char,
-        _ => unreachable!("nibble called with value > 15"),
-    }
 }
 
 #[cfg(test)]
@@ -45,15 +40,13 @@ mod tests {
 
     #[test]
     fn sha256_known_answer() {
-        // FIPS 180-4 example: SHA-256("abc")
-        let out = apply("abc", &HashAlgorithm::Sha256, None);
+        let out = apply("abc", HashAlgorithm::Sha256, None);
         assert_eq!(out, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
     }
 
     #[test]
     fn sha512_known_answer() {
-        // FIPS 180-4 example: SHA-512("abc")
-        let out = apply("abc", &HashAlgorithm::Sha512, None);
+        let out = apply("abc", HashAlgorithm::Sha512, None);
         assert_eq!(
             out,
             "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a\
@@ -63,25 +56,24 @@ mod tests {
 
     #[test]
     fn hmac_sha256_rfc4231_test1() {
-        // RFC 4231 §4.2 — key = 0x0b * 20, data = "Hi There"
         let key = vec![0x0bu8; 20];
-        let out = apply("Hi There", &HashAlgorithm::Sha256, Some(&key));
+        let out = apply("Hi There", HashAlgorithm::Sha256, Some(&key));
         assert_eq!(out, "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7");
     }
 
     #[test]
     fn hmac_changes_with_key() {
-        let a = apply("hello", &HashAlgorithm::Sha256, Some(b"k1"));
-        let b = apply("hello", &HashAlgorithm::Sha256, Some(b"k2"));
-        let bare = apply("hello", &HashAlgorithm::Sha256, None);
+        let a = apply("hello", HashAlgorithm::Sha256, Some(b"k1"));
+        let b = apply("hello", HashAlgorithm::Sha256, Some(b"k2"));
+        let bare = apply("hello", HashAlgorithm::Sha256, None);
         assert_ne!(a, b);
         assert_ne!(a, bare);
     }
 
     #[test]
     fn deterministic() {
-        let a = apply("hello", &HashAlgorithm::Sha256, None);
-        let b = apply("hello", &HashAlgorithm::Sha256, None);
+        let a = apply("hello", HashAlgorithm::Sha256, None);
+        let b = apply("hello", HashAlgorithm::Sha256, None);
         assert_eq!(a, b);
     }
 }

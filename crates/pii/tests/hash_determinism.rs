@@ -4,8 +4,8 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 
 use dbmcp_pii::{
-    AnalysisExplanation, Anonymizer, EntityType, HashAlgorithm, Operator, OperatorConfig, RecognizerResult, Score,
-    ValidationOutcome,
+    AnalysisExplanation, EntityType, HashAlgorithm, Operator, OperatorConfig, RecognizerResult, Score,
+    ValidationOutcome, anonymize,
 };
 
 fn rr(et: &str, start: usize, end: usize) -> RecognizerResult {
@@ -27,7 +27,6 @@ fn rr(et: &str, start: usize, end: usize) -> RecognizerResult {
 
 #[test]
 fn sha256_deterministic_bare() {
-    let anonymizer = Anonymizer::new();
     let text = "hello world";
     let mut per_entity = HashMap::new();
     per_entity.insert(
@@ -36,16 +35,15 @@ fn sha256_deterministic_bare() {
     );
     let config = OperatorConfig {
         per_entity,
-        default: Operator::default_for(&EntityType::new("X".to_owned())),
+        ..OperatorConfig::default()
     };
-    let a = anonymizer.anonymize(text, vec![rr("X", 0, 5)], &config);
-    let b = anonymizer.anonymize(text, vec![rr("X", 0, 5)], &config);
+    let a = anonymize(text, vec![rr("X", 0, 5)], &config);
+    let b = anonymize(text, vec![rr("X", 0, 5)], &config);
     assert_eq!(a.text, b.text);
 }
 
 #[test]
 fn sha512_deterministic_bare() {
-    let anonymizer = Anonymizer::new();
     let text = "hello world";
     let mut per_entity = HashMap::new();
     per_entity.insert(
@@ -54,16 +52,15 @@ fn sha512_deterministic_bare() {
     );
     let config = OperatorConfig {
         per_entity,
-        default: Operator::default_for(&EntityType::new("X".to_owned())),
+        ..OperatorConfig::default()
     };
-    let a = anonymizer.anonymize(text, vec![rr("X", 0, 5)], &config);
-    let b = anonymizer.anonymize(text, vec![rr("X", 0, 5)], &config);
+    let a = anonymize(text, vec![rr("X", 0, 5)], &config);
+    let b = anonymize(text, vec![rr("X", 0, 5)], &config);
     assert_eq!(a.text, b.text);
 }
 
 #[test]
 fn keyed_differs_from_bare() {
-    let anonymizer = Anonymizer::new();
     let text = "hello world";
 
     let bare_cfg = {
@@ -74,7 +71,7 @@ fn keyed_differs_from_bare() {
         );
         OperatorConfig {
             per_entity: per,
-            default: Operator::default_for(&EntityType::new("X".to_owned())),
+            ..OperatorConfig::default()
         }
     };
     let keyed_cfg = {
@@ -85,12 +82,12 @@ fn keyed_differs_from_bare() {
         );
         OperatorConfig {
             per_entity: per,
-            default: Operator::default_for(&EntityType::new("X".to_owned())),
+            ..OperatorConfig::default()
         }
     };
 
-    let bare = anonymizer.anonymize(text, vec![rr("X", 0, 5)], &bare_cfg);
-    let keyed = anonymizer.anonymize(text, vec![rr("X", 0, 5)], &keyed_cfg);
+    let bare = anonymize(text, vec![rr("X", 0, 5)], &bare_cfg);
+    let keyed = anonymize(text, vec![rr("X", 0, 5)], &keyed_cfg);
     assert_ne!(bare.text, keyed.text);
 }
 

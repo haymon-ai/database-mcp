@@ -60,30 +60,24 @@ impl Validator for LuhnValidator {
     }
 }
 
-/// IBAN mod-97 validator. Accepts upper-case input; spaces stripped before checking.
+/// IBAN mod-97 validator. Accepts upper-case input; whitespace stripped before checking.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct IbanValidator;
 
 impl IbanValidator {
-    fn mod97(rearranged: &str) -> Option<u32> {
-        let mut numeric = String::with_capacity(rearranged.len() * 2);
-        for c in rearranged.chars() {
-            if c.is_ascii_digit() {
-                numeric.push(c);
+    /// Streaming mod-97: walk the rearranged IBAN character-by-character, folding into
+    /// `remainder` directly. No intermediate string, no chunked parse.
+    fn mod97_stream<I: Iterator<Item = char>>(chars: I) -> Option<u32> {
+        let mut remainder: u32 = 0;
+        for c in chars {
+            if let Some(d) = c.to_digit(10) {
+                remainder = (remainder * 10 + d) % 97;
             } else if c.is_ascii_uppercase() {
-                let v = (c as u8) - b'A' + 10;
-                numeric.push_str(&v.to_string());
+                let v = u32::from(c as u8 - b'A' + 10);
+                remainder = (remainder * 100 + v) % 97;
             } else {
                 return None;
             }
-        }
-        // Compute mod 97 in chunks to avoid overflow; chunk length is at most 7 digits.
-        let mut remainder: u32 = 0;
-        for chunk in numeric.as_bytes().chunks(7) {
-            let s = std::str::from_utf8(chunk).ok()?;
-            let n: u32 = s.parse().ok()?;
-            let chunk_len = u32::try_from(s.len()).ok()?;
-            remainder = (remainder * 10u32.pow(chunk_len) + n) % 97;
         }
         Some(remainder)
     }
@@ -91,20 +85,46 @@ impl IbanValidator {
 
 impl Validator for IbanValidator {
     fn validate(&self, candidate: &str) -> ValidationOutcome {
-        let cleaned: String = candidate
+        let cleaned: Vec<char> = candidate
             .chars()
             .filter(|c| !c.is_whitespace())
             .map(|c| c.to_ascii_uppercase())
             .collect();
-        if cleaned.len() < 15 || cleaned.len() > 34 {
+        if !(15..=34).contains(&cleaned.len()) {
             return ValidationOutcome::Invalid;
         }
-        let (head, tail) = cleaned.split_at(4);
-        let rearranged = format!("{tail}{head}");
-        match Self::mod97(&rearranged) {
+        // Rearranged = tail (chars 4..) followed by head (chars 0..4).
+        let rearranged = cleaned[4..].iter().chain(cleaned[..4].iter()).copied();
+        match Self::mod97_stream(rearranged) {
             Some(1) => ValidationOutcome::Valid,
-            Some(_) | None => ValidationOutcome::Invalid,
+            _ => ValidationOutcome::Invalid,
         }
+    }
+}
+
+/// US Social Security Number validator. Rejects reserved area / group / serial values
+/// — replaces the negative-lookahead constructs Presidio's regex used.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct UsSsnValidator;
+
+impl Validator for UsSsnValidator {
+    fn validate(&self, candidate: &str) -> ValidationOutcome {
+        let digits: Vec<u8> = candidate
+            .chars()
+            .filter_map(|c| c.to_digit(10))
+            .map(|d| u8::try_from(d).expect("base-10 digit fits in u8"))
+            .collect();
+        if digits.len() != 9 {
+            return ValidationOutcome::Invalid;
+        }
+        let area = u32::from(digits[0]) * 100 + u32::from(digits[1]) * 10 + u32::from(digits[2]);
+        let group = u32::from(digits[3]) * 10 + u32::from(digits[4]);
+        let serial =
+            u32::from(digits[5]) * 1000 + u32::from(digits[6]) * 100 + u32::from(digits[7]) * 10 + u32::from(digits[8]);
+        if area == 0 || area == 666 || area >= 900 || group == 0 || serial == 0 {
+            return ValidationOutcome::Invalid;
+        }
+        ValidationOutcome::Valid
     }
 }
 
@@ -118,8 +138,8 @@ pub struct IpAddressValidator;
 
 impl Validator for IpAddressValidator {
     fn validate(&self, candidate: &str) -> ValidationOutcome {
-        let trimmed = candidate.split('/').next().unwrap_or(candidate);
-        let trimmed = trimmed.split('%').next().unwrap_or(trimmed);
+        // Strip CIDR suffix `/N` and IPv6 zone identifier `%zone` in one split.
+        let trimmed = candidate.split(['/', '%']).next().unwrap_or("");
         if IpAddr::from_str(trimmed).is_ok() {
             ValidationOutcome::Valid
         } else {

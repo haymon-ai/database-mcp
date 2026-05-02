@@ -11,13 +11,12 @@
 //! # Quickstart
 //!
 //! ```
-//! use dbmcp_pii::{AnalyzeOptions, Analyzer, Anonymizer, OperatorConfig};
+//! use dbmcp_pii::{AnalyzeOptions, Analyzer, OperatorConfig, anonymize};
 //!
 //! let analyzer = Analyzer::with_defaults();
-//! let anonymizer = Anonymizer::new();
 //! let text = "ping me at jane.doe@example.com";
 //! let results = analyzer.analyze(text, &AnalyzeOptions::default());
-//! let out = anonymizer.anonymize(text, results, &OperatorConfig::default());
+//! let out = anonymize(text, results, &OperatorConfig::default());
 //! assert_eq!(out.text, "ping me at <EMAIL_ADDRESS>");
 //! ```
 
@@ -32,20 +31,17 @@ pub mod pattern;
 pub mod recognizer;
 pub mod result;
 pub mod score;
-pub mod timeout;
 
 pub use crate::analyzer::{AnalyzeOptions, Analyzer};
-pub use crate::anonymizer::{AnonymizedText, Anonymizer, OperatorConfig};
+pub use crate::anonymizer::{AnonymizedText, OperatorConfig, anonymize};
 pub use crate::error::{AnalyzerError, OperatorError, PatternError, RecognizerError};
 pub use crate::operator::{ChunkCount, HashAlgorithm, Operator, OperatorKind};
-pub use crate::pattern::{Pattern, PatternKind};
+pub use crate::pattern::Pattern;
 pub use crate::recognizer::{
     EntityType, PatternRecognizer, Recognizer, ValidationOutcome, Validator, deny_list_recognizer,
 };
 pub use crate::result::{AnalysisExplanation, OperatorResult, RecognizerResult};
 pub use crate::score::{MAX_SCORE, MIN_SCORE, Score};
 
-#[cfg(feature = "builtin")]
 pub use crate::recognizer::builtin;
-#[cfg(feature = "builtin")]
 pub use crate::recognizer::entity;

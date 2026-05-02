@@ -16,7 +16,7 @@ pub fn credit_card() -> PatternRecognizer {
     let pattern = Pattern::new(
         "All Credit Cards (weak)",
         r"\b((4\d{3})|(5[0-5]\d{2})|(6\d{3})|(1\d{3})|(3\d{3}))[- ]?(\d{3,4})[- ]?(\d{3,4})[- ]?(\d{3,5})\b",
-        Score::new(0.3).expect("0.3 in range"),
+        Score::from_static(0.3),
     )
     .expect("static credit-card pattern compiles");
     PatternRecognizer::new(entity::CREDIT_CARD, vec![pattern])
