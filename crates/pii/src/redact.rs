@@ -114,10 +114,7 @@ impl Redactor {
     pub fn apply(&self, rows: &mut [Value]) -> Result<RedactionStats, RedactionError> {
         let mut stats = RedactionStats::default();
         let result = catch_unwind(AssertUnwindSafe(|| {
-            let mut stack: Vec<&mut Value> = Vec::with_capacity(rows.len());
-            for row in rows.iter_mut() {
-                stack.push(row);
-            }
+            let mut stack: Vec<&mut Value> = rows.iter_mut().collect();
             while let Some(v) = stack.pop() {
                 match v {
                     Value::String(s) => {
@@ -136,16 +133,8 @@ impl Redactor {
                         }
                         *s = anon.text;
                     }
-                    Value::Object(map) => {
-                        for (_k, child) in map.iter_mut() {
-                            stack.push(child);
-                        }
-                    }
-                    Value::Array(arr) => {
-                        for child in arr.iter_mut() {
-                            stack.push(child);
-                        }
-                    }
+                    Value::Object(map) => stack.extend(map.values_mut()),
+                    Value::Array(arr) => stack.extend(arr.iter_mut()),
                     Value::Number(_) | Value::Bool(_) | Value::Null => {}
                 }
             }
@@ -209,7 +198,6 @@ mod tests {
         assert_eq!(rows[0]["obj"], json!({"k": "<EMAIL_ADDRESS>"}));
         assert_eq!(stats.total, 2);
         assert_eq!(stats.by_entity.get("EMAIL_ADDRESS").copied(), Some(2));
-        // Five string leaves scanned: arr[0], obj.k. Other fields are non-strings.
         assert_eq!(stats.string_leaves_scanned, 2);
     }
 
@@ -319,18 +307,10 @@ mod tests {
         // intermediate `Map` is left empty by the `remove` call below, so its
         // own `Drop` is shallow).
         let mut head = rows.pop().expect("one row");
-        drop(rows);
-        loop {
-            let next = match head {
-                Value::Object(ref mut m) => m.remove("a"),
-                _ => None,
-            };
-            match next {
-                Some(n) => head = n,
-                None => break,
-            }
+        while let Value::Object(ref mut m) = head {
+            let Some(child) = m.remove("a") else { break };
+            head = child;
         }
-        drop(head);
 
         match outcome {
             Ok(stats) => {
