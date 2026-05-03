@@ -154,7 +154,7 @@ impl TryFrom<&DatabaseArguments> for DatabaseConfig {
 pub(crate) struct PiiArguments {
     /// Enable PII redaction of query tool output
     #[arg(
-        long = "pii-enable",
+        long = "pii",
         env = "PII_ENABLE",
         default_value_t = PiiConfig::DEFAULT_ENABLED,
         action = clap::ArgAction::Set,
@@ -387,12 +387,10 @@ mod tests {
     fn clap_pii_flags_grouped_under_pii_heading() {
         let help = TestCli::command().render_help().to_string();
         let pii_pos = help.find("PII:").expect("PII heading must be present in --help");
-        let flag_pos = help
-            .find("--pii-enable")
-            .expect("--pii-enable must be present in --help");
+        let flag_pos = help.find("--pii ").expect("--pii must be present in --help");
         assert!(
             pii_pos < flag_pos,
-            "PII heading must precede --pii-enable in help output:\n{help}"
+            "PII heading must precede --pii in help output:\n{help}"
         );
     }
 }
