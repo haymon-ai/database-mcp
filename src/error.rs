@@ -3,7 +3,7 @@
 //! Defines the top-level [`Error`] enum used for server startup and
 //! transport failures in the binary crate.
 
-use dbmcp_config::ConfigError;
+use dbmcp_config::ConfigErrors;
 
 /// Application-level errors for server startup and transport.
 ///
@@ -21,18 +21,18 @@ pub(crate) enum Error {
 
     /// Configuration validation failed with one or more errors.
     #[error("{}", format_config_errors(.0))]
-    Config(Vec<ConfigError>),
+    Config(ConfigErrors),
 }
 
-impl From<Vec<ConfigError>> for Error {
-    fn from(errors: Vec<ConfigError>) -> Self {
+impl From<ConfigErrors> for Error {
+    fn from(errors: ConfigErrors) -> Self {
         Self::Config(errors)
     }
 }
 
-fn format_config_errors(errors: &[ConfigError]) -> String {
+fn format_config_errors(errors: &ConfigErrors) -> String {
     let mut s = String::from("configuration validation failed:");
-    for error in errors {
+    for error in errors.iter() {
         s.push_str("\n  - ");
         s.push_str(&error.to_string());
     }
@@ -42,19 +42,25 @@ fn format_config_errors(errors: &[ConfigError]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dbmcp_config::ConfigError;
 
     #[test]
     fn config_error_display_bullets_each_error() {
-        let error = Error::Config(vec![ConfigError::MissingSqliteDbName, ConfigError::EmptyHttpHost]);
+        let errors = ConfigErrors::from_vec(vec![
+            ConfigError::MissingSqliteDbName,
+            ConfigError::SslCertNotFound("DB_SSL_CA".into(), "/nope".into()),
+        ])
+        .expect("non-empty");
+        let error = Error::Config(errors);
         let rendered = error.to_string();
         assert!(rendered.starts_with("configuration validation failed:"));
         assert!(rendered.contains("\n  - DB_NAME (file path) is required for SQLite"));
-        assert!(rendered.contains("\n  - HTTP_HOST must not be empty"));
+        assert!(rendered.contains("\n  - DB_SSL_CA file not found: /nope"));
     }
 
     #[test]
-    fn config_error_from_vec() {
-        let error: Error = vec![ConfigError::EmptyHttpHost].into();
+    fn config_error_from_config_errors() {
+        let error: Error = ConfigErrors::single(ConfigError::MissingSqliteDbName).into();
         assert!(matches!(error, Error::Config(_)));
     }
 }

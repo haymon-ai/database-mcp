@@ -7,7 +7,7 @@
 //! configured [`DatabaseBackend`] onto the matching concrete adapter.
 
 use clap::Args;
-use dbmcp_config::{Config, ConfigError, DatabaseBackend, DatabaseConfig, PiiConfig, PiiOperator};
+use dbmcp_config::{Config, ConfigErrors, DatabaseBackend, DatabaseConfig, PiiConfig, PiiOperator};
 use dbmcp_mysql::MysqlHandler;
 use dbmcp_postgres::PostgresHandler;
 use dbmcp_sqlite::SqliteHandler;
@@ -120,11 +120,11 @@ pub(crate) struct DatabaseArguments {
 }
 
 impl TryFrom<&DatabaseArguments> for DatabaseConfig {
-    type Error = Vec<ConfigError>;
+    type Error = ConfigErrors;
 
     fn try_from(db: &DatabaseArguments) -> Result<Self, Self::Error> {
         let backend = db.backend;
-        let config = Self {
+        let candidate = Self {
             backend,
             host: db.host.clone(),
             port: db.port.unwrap_or_else(|| backend.default_port()),
@@ -143,8 +143,8 @@ impl TryFrom<&DatabaseArguments> for DatabaseConfig {
             query_timeout: Some(db.query_timeout),
             page_size: db.page_size,
         };
-        config.validate()?;
-        Ok(config)
+        candidate.validate()?;
+        Ok(candidate)
     }
 }
 
@@ -171,12 +171,16 @@ pub(crate) struct PiiArguments {
     pub(crate) operator: PiiOperator,
 }
 
-impl From<&PiiArguments> for PiiConfig {
-    fn from(args: &PiiArguments) -> Self {
-        Self {
+impl TryFrom<&PiiArguments> for PiiConfig {
+    type Error = ConfigErrors;
+
+    fn try_from(args: &PiiArguments) -> Result<Self, Self::Error> {
+        let candidate = Self {
             enabled: args.enabled,
             operator: args.operator,
-        }
+        };
+        candidate.validate()?;
+        Ok(candidate)
     }
 }
 
@@ -205,7 +209,7 @@ mod tests {
     use clap::{CommandFactory, Parser};
 
     use super::{DatabaseArguments, PiiArguments};
-    use dbmcp_config::PiiOperator;
+    use dbmcp_config::{ConfigError, DatabaseConfig, PiiConfig, PiiOperator};
 
     #[derive(Debug, Parser)]
     #[command(no_binary_name = true)]
@@ -306,6 +310,77 @@ mod tests {
                 "error must list accepted value '{accepted}': {msg}"
             );
         }
+    }
+
+    fn clear_db_env() {
+        // SAFETY: tests in this file do not write DB_* env vars concurrently.
+        unsafe {
+            std::env::remove_var("DB_BACKEND");
+            std::env::remove_var("DB_NAME");
+            std::env::remove_var("DB_SSL");
+            std::env::remove_var("DB_SSL_CA");
+            std::env::remove_var("DB_SSL_CERT");
+            std::env::remove_var("DB_SSL_KEY");
+        }
+    }
+
+    #[test]
+    fn try_from_database_arguments_rejects_sqlite_without_db_name() {
+        clear_db_env();
+        let cli = TestCli::try_parse_from(["--db-backend", "sqlite"]).expect("clap parse");
+        let errors = DatabaseConfig::try_from(&cli.db).expect_err("sqlite without name must fail");
+        assert!(errors.iter().any(|e| matches!(e, ConfigError::MissingSqliteDbName)));
+    }
+
+    #[test]
+    fn try_from_database_arguments_rejects_missing_ssl_cert_files() {
+        clear_db_env();
+        let cli = TestCli::try_parse_from([
+            "--db-ssl",
+            "--db-ssl-ca",
+            "/nonexistent/ca.pem",
+            "--db-ssl-cert",
+            "/nonexistent/cert.pem",
+            "--db-ssl-key",
+            "/nonexistent/key.pem",
+        ])
+        .expect("clap parse");
+        let errors = DatabaseConfig::try_from(&cli.db).expect_err("missing ssl cert files must fail");
+        let cert_errors = errors
+            .iter()
+            .filter(|e| matches!(e, ConfigError::SslCertNotFound(_, _)))
+            .count();
+        assert_eq!(cert_errors, 3, "expected three SslCertNotFound errors, got {errors:?}");
+    }
+
+    #[test]
+    fn try_from_database_arguments_accumulates_sqlite_name_and_ssl_errors() {
+        clear_db_env();
+        let cli = TestCli::try_parse_from([
+            "--db-backend",
+            "sqlite",
+            "--db-ssl",
+            "--db-ssl-ca",
+            "/nonexistent/ca.pem",
+        ])
+        .expect("clap parse");
+        let errors = DatabaseConfig::try_from(&cli.db).expect_err("multiple errors must accumulate");
+        assert!(errors.iter().any(|e| matches!(e, ConfigError::MissingSqliteDbName)));
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, ConfigError::SslCertNotFound(name, path) if name == "DB_SSL_CA" && path == "/nonexistent/ca.pem"))
+        );
+    }
+
+    #[test]
+    fn pii_config_validate_is_called_from_try_from_path() {
+        // Structural-presence guard: ensures PiiConfig::try_from invokes
+        // PiiConfig::validate. When a future rule fires on default args,
+        // this test deliberately fails — flagging the contributor.
+        clear_pii_env();
+        let cli = TestCli::try_parse_from(Vec::<&str>::new()).expect("clap parse");
+        PiiConfig::try_from(&cli.pii).expect("default pii args must validate");
     }
 
     #[test]

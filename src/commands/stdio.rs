@@ -4,7 +4,7 @@
 //! Cursor, and other MCP clients that communicate via stdio.
 
 use clap::Parser;
-use dbmcp_config::{Config, ConfigError, DatabaseConfig, PiiConfig};
+use dbmcp_config::{Config, ConfigError, ConfigErrors, DatabaseConfig, PiiConfig};
 use rmcp::ServiceExt;
 use tracing::{error, info};
 
@@ -24,29 +24,29 @@ pub(crate) struct StdioCommand {
 }
 
 impl TryFrom<&StdioCommand> for Config {
-    type Error = Vec<ConfigError>;
+    type Error = ConfigErrors;
 
     fn try_from(cmd: &StdioCommand) -> Result<Self, Self::Error> {
-        let mut errors: Vec<ConfigError> = Vec::new();
-        let database = match DatabaseConfig::try_from(&cmd.db_arguments) {
-            Ok(c) => Some(c),
-            Err(e) => {
-                errors.extend(e);
-                None
+        match (
+            DatabaseConfig::try_from(&cmd.db_arguments),
+            PiiConfig::try_from(&cmd.pii_arguments),
+        ) {
+            (Ok(database), Ok(pii)) => Ok(Self {
+                database,
+                http: None,
+                pii,
+            }),
+            (database, pii) => {
+                let mut errors: Vec<ConfigError> = Vec::new();
+                if let Err(e) = database {
+                    errors.extend(e);
+                }
+                if let Err(e) = pii {
+                    errors.extend(e);
+                }
+                Err(ConfigErrors::from_vec(errors).expect("non-Ok branch implies at least one Err"))
             }
-        };
-        let pii = PiiConfig::from(&cmd.pii_arguments);
-        if let Err(e) = pii.validate() {
-            errors.extend(e);
         }
-        if !errors.is_empty() {
-            return Err(errors);
-        }
-        Ok(Self {
-            database: database.expect("database config present when no errors collected"),
-            http: None,
-            pii,
-        })
     }
 }
 
@@ -118,5 +118,39 @@ mod tests {
         let errors =
             DatabaseConfig::try_from(&cmd.db_arguments).expect_err("sqlite without --db-name must be rejected");
         assert!(errors.iter().any(|e| matches!(e, ConfigError::MissingSqliteDbName)));
+    }
+
+    #[test]
+    fn top_level_try_from_accumulates_across_sections_in_db_pii_order() {
+        // PiiConfig has no rules today, so this exercises the database-section
+        // accumulation reaching the top-level join. When pii gains a rule that
+        // fires on default args, widen the assertion to verify db→pii ordering.
+        let cmd = parse(&[
+            "_",
+            "--db-backend",
+            "sqlite",
+            "--db-ssl",
+            "--db-ssl-ca",
+            "/nonexistent/ca.pem",
+            "--db-ssl-cert",
+            "/nonexistent/cert.pem",
+            "--db-ssl-key",
+            "/nonexistent/key.pem",
+        ]);
+        let errors = Config::try_from(&cmd).expect_err("multi-section misconfig must fail");
+        let collected: Vec<&ConfigError> = errors.iter().collect();
+        assert!(matches!(collected[0], ConfigError::MissingSqliteDbName));
+        assert!(matches!(
+            collected[1],
+            ConfigError::SslCertNotFound(name, _) if name == "DB_SSL_CA"
+        ));
+        assert!(matches!(
+            collected[2],
+            ConfigError::SslCertNotFound(name, _) if name == "DB_SSL_CERT"
+        ));
+        assert!(matches!(
+            collected[3],
+            ConfigError::SslCertNotFound(name, _) if name == "DB_SSL_KEY"
+        ));
     }
 }
