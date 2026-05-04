@@ -4080,3 +4080,90 @@ async fn read_query_hash_operator_emits_stable_digest() {
     assert_eq!(a.len(), 64, "SHA-256 hex digest is 64 chars: {a}");
     assert!(a.chars().all(|c| c.is_ascii_hexdigit()), "digest must be hex: {a}");
 }
+
+// Spec 092 / issue #141 (US3) — NUMERIC, MONEY, REAL, DOUBLE PRECISION round-trip
+// through readQuery without silent nulls or precision loss. Asserts against
+// the value-driven JSON shape rule from data-model.md.
+#[tokio::test]
+async fn test_read_numeric_columns_round_trip() {
+    let handler = handler(false);
+    let select = ReadQueryRequest {
+        query: "SELECT label, n_small, n_int, n_overflow, f4, f8, m_small, m_overflow FROM numeric_samples ORDER BY id"
+            .into(),
+        database: Some("app".into()),
+        cursor: None,
+    };
+    let rows = handler.read_query(select).await.unwrap();
+    let by_label: std::collections::HashMap<&str, &Value> = rows
+        .rows
+        .iter()
+        .map(|r| (r["label"].as_str().expect("label is a string"), r))
+        .collect();
+
+    let basic = by_label["basic"];
+    assert_eq!(basic["n_small"], serde_json::json!(123.45), "NUMERIC(12,2) basic");
+    assert_eq!(basic["n_int"], serde_json::json!(42), "NUMERIC(10,0) integer");
+    assert_eq!(basic["n_overflow"], serde_json::json!(1.5));
+    assert_eq!(basic["f4"], serde_json::json!(1.5), "REAL must not be null");
+    assert_eq!(basic["f8"], serde_json::json!(2.5), "DOUBLE PRECISION");
+    assert_eq!(basic["m_small"], serde_json::json!(123.45), "MONEY $123.45");
+    assert_eq!(
+        basic["m_overflow"],
+        serde_json::json!("92233720368547758.07"),
+        "MONEY at i64::MAX cents must emit as exact-text string"
+    );
+
+    let trailing = by_label["trailing_zero"];
+    assert_eq!(trailing["n_small"], serde_json::json!(1.2));
+    assert_eq!(trailing["n_int"], serde_json::json!(10));
+    assert_eq!(trailing["n_overflow"], serde_json::json!(0.1));
+    assert_eq!(trailing["m_small"], serde_json::json!(0.1), "MONEY $0.10 normalized");
+
+    let neg = by_label["negative"];
+    assert_eq!(neg["n_small"], serde_json::json!(-99.99));
+    assert_eq!(neg["n_int"], serde_json::json!(-7));
+    assert_eq!(neg["n_overflow"], serde_json::json!(-123.45));
+    assert_eq!(neg["f4"], serde_json::json!(-1.5));
+    assert_eq!(neg["f8"], serde_json::json!(-2.5));
+    assert_eq!(neg["m_small"], serde_json::json!(-99.99));
+    assert_eq!(neg["m_overflow"], serde_json::json!("-92233720368547758.08"));
+
+    let overflow = by_label["overflow"];
+    assert_eq!(overflow["n_small"], serde_json::json!(0.01));
+    assert_eq!(overflow["n_int"], serde_json::json!(1));
+    assert_eq!(
+        overflow["n_overflow"],
+        serde_json::json!("12345678901234567890.123456789"),
+        "NUMERIC(38,10) beyond f64 precision must be exact-text string"
+    );
+    assert_eq!(overflow["f4"], serde_json::json!(1.5));
+    assert_eq!(overflow["f8"], serde_json::json!(1e100));
+    // $1.00 normalizes to integer 1; bigdecimal_to_json emits as integer
+    // JSON number per the integer fast-path in numeric.rs.
+    assert_eq!(overflow["m_small"], serde_json::json!(1));
+
+    let null_row = by_label["all_null"];
+    assert_eq!(null_row["n_small"], Value::Null, "explicit SQL NULL preserved");
+    assert_eq!(null_row["n_int"], Value::Null);
+    assert_eq!(null_row["n_overflow"], Value::Null);
+    assert_eq!(null_row["f4"], Value::Null);
+    assert_eq!(null_row["f8"], Value::Null);
+    assert_eq!(null_row["m_small"], Value::Null);
+    assert_eq!(null_row["m_overflow"], Value::Null);
+}
+
+// Spec 092 US2 — NUMERIC aggregation preserves precision end-to-end (SC-003).
+#[tokio::test]
+async fn test_read_numeric_aggregation_exact_precision() {
+    let handler = handler(false);
+    let select = ReadQueryRequest {
+        query:
+            "SELECT SUM(n_small) AS total FROM numeric_samples WHERE label IN ('basic', 'trailing_zero', 'overflow')"
+                .into(),
+        database: Some("app".into()),
+        cursor: None,
+    };
+    let rows = handler.read_query(select).await.unwrap();
+    // 123.45 + 1.20 + 0.01 = 124.66 — fits in f64 → JSON number.
+    assert_eq!(rows.rows[0]["total"], serde_json::json!(124.66));
+}
