@@ -113,3 +113,79 @@ impl RowExt for PgRow {
         Value::Object(map)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::parse_pg_money_text;
+    use bigdecimal::BigDecimal;
+    use std::str::FromStr;
+
+    fn dec(s: &str) -> BigDecimal {
+        BigDecimal::from_str(s).expect("valid decimal literal")
+    }
+
+    #[test]
+    fn parses_plain_money() {
+        assert_eq!(parse_pg_money_text("$123.45"), Some(dec("123.45")));
+    }
+
+    #[test]
+    fn parses_money_with_thousand_separators() {
+        // Postgres MONEY in en_US.UTF-8 emits grouping commas in output:
+        // `$1,234,567.89`. The filter drops everything but digits/`.`/`-`,
+        // so commas vanish before parsing.
+        assert_eq!(parse_pg_money_text("$1,234.56"), Some(dec("1234.56")));
+        assert_eq!(parse_pg_money_text("$1,234,567.89"), Some(dec("1234567.89")));
+    }
+
+    #[test]
+    fn parses_zero_money() {
+        assert_eq!(parse_pg_money_text("$0.00"), Some(dec("0")));
+    }
+
+    #[test]
+    fn parses_negative_money_leading_minus_outside_symbol() {
+        // Default en_US.UTF-8 form: `-$99.99`.
+        assert_eq!(parse_pg_money_text("-$99.99"), Some(dec("-99.99")));
+    }
+
+    #[test]
+    fn parses_negative_money_with_minus_after_symbol() {
+        // Some locales render as `$-99.99`; filter retains `-` so the parse
+        // still produces a negative value.
+        assert_eq!(parse_pg_money_text("$-99.99"), Some(dec("-99.99")));
+    }
+
+    #[test]
+    fn empty_string_returns_none() {
+        assert!(parse_pg_money_text("").is_none());
+    }
+
+    #[test]
+    fn unparseable_returns_none() {
+        // After filtering: `..` — bigdecimal rejects this.
+        assert!(parse_pg_money_text("$.").is_none());
+        assert!(parse_pg_money_text("abc").is_none());
+    }
+
+    #[test]
+    fn accounting_parens_misparsed_as_positive() {
+        // Documents a known limitation: locales that wrap negatives in
+        // parentheses ($99.99) lose the negative sign because the filter
+        // strips `(` and `)`. Postgres en_US.UTF-8 default does not use
+        // this form; if a deployment customises lc_monetary to one that
+        // does, the wire form will be wrong. Test pins behaviour so any
+        // future fix surfaces as an obvious diff.
+        assert_eq!(parse_pg_money_text("($99.99)"), Some(dec("99.99")));
+    }
+
+    #[test]
+    fn large_money_at_i64_max_cents() {
+        // $92,233,720,368,547,758.07 — the maximum positive Postgres MONEY,
+        // beyond f64's 15-digit safe range.
+        assert_eq!(
+            parse_pg_money_text("$92,233,720,368,547,758.07"),
+            Some(dec("92233720368547758.07"))
+        );
+    }
+}

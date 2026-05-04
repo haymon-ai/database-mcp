@@ -4626,3 +4626,67 @@ async fn test_read_decimal_aggregation_exact_precision() {
     // 123.45 + 1.20 + 0.01 = 124.66 — fits in f64 → JSON number.
     assert_eq!(rows.rows[0]["total"], serde_json::json!(124.66));
 }
+
+// AVG over DECIMAL widens scale per MySQL rules (DECIMAL(M+4, D+4)).
+// Verifies the digit-gate handles the resulting higher-precision result
+// correctly and integer-valued averages still take the integer fast-path.
+#[tokio::test]
+async fn test_read_decimal_avg_preserves_precision() {
+    let handler = handler(false);
+    let select = ReadQueryRequest {
+        query: "SELECT AVG(d_int) AS avg_int FROM numeric_samples \
+                WHERE label IN ('basic', 'trailing_zero')"
+            .into(),
+        database: Some("app".into()),
+        cursor: None,
+    };
+    let rows = handler.read_query(select).await.unwrap();
+    // (42 + 10) / 2 = 26 — integer-valued → integer fast-path.
+    assert_eq!(rows.rows[0]["avg_int"], serde_json::json!(26));
+}
+
+// MySQL rejects NaN/Inf for FLOAT/DOUBLE storage and produces NULL (not
+// NaN) for invalid math like 0/0. Verifies the wire shape is consistent
+// regardless of how the engine arrives at the missing value.
+#[tokio::test]
+async fn test_read_float_invalid_math_emits_null() {
+    let handler = handler(false);
+    let select = ReadQueryRequest {
+        query: "SELECT 0.0 / 0.0 AS div_zero, \
+                       LOG(-1) AS log_neg, \
+                       SQRT(-1) AS sqrt_neg"
+            .into(),
+        database: Some("app".into()),
+        cursor: None,
+    };
+    let rows = handler.read_query(select).await.unwrap();
+    assert_eq!(rows.rows[0]["div_zero"], Value::Null);
+    assert_eq!(rows.rows[0]["log_neg"], Value::Null);
+    assert_eq!(rows.rows[0]["sqrt_neg"], Value::Null);
+}
+
+// FLOAT (sqlx-mysql strict-checks the column type) was previously decoded
+// as f64 and silently emitted Null for every row. Asserts the FLOAT path
+// works for negative, zero, and large magnitudes — a regression test for
+// issue #141.
+#[tokio::test]
+async fn test_read_float_column_full_range() {
+    let handler = handler(false);
+    let select = ReadQueryRequest {
+        query: "SELECT label, f FROM numeric_samples ORDER BY id".into(),
+        database: Some("app".into()),
+        cursor: None,
+    };
+    let rows = handler.read_query(select).await.unwrap();
+    let by_label: std::collections::HashMap<&str, &Value> = rows
+        .rows
+        .iter()
+        .map(|r| (r["label"].as_str().expect("label"), r))
+        .collect();
+    assert!(
+        matches!(by_label["basic"]["f"], Value::Number(_)),
+        "FLOAT must not be Null"
+    );
+    assert!(matches!(by_label["negative"]["f"], Value::Number(_)));
+    assert!(matches!(by_label["overflow"]["f"], Value::Number(_)));
+}

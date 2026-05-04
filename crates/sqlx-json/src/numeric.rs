@@ -40,6 +40,12 @@ pub(crate) fn bigdecimal_to_json(value: &BigDecimal) -> Value {
     let canonical_digits = normalized.digits() + scale.min(0).unsigned_abs();
     if canonical_digits <= F64_SAFE_DIGITS
         && let Some(as_f64) = normalized.to_f64()
+        // Underflow guard: tiny non-zero values (≈ |v| < 5e-324) clamp to
+        // 0.0 in f64. The integer fast-path above already returned for
+        // true zero, so reaching this branch with `as_f64 == 0.0` means
+        // the value was non-zero and silently lost — fall through to the
+        // canonical-string form instead of emitting JSON `0`.
+        && as_f64 != 0.0
         && let Some(num) = serde_json::Number::from_f64(as_f64)
     {
         return Value::from(num);
@@ -140,5 +146,114 @@ mod tests {
         // `Display` writes scientific form past its zero-threshold.
         let v = bigdecimal_to_json(&dec("1000000000000000000000000000000"));
         assert!(matches!(v, Value::String(_)));
+    }
+
+    #[test]
+    fn zero_is_integer_zero() {
+        assert_eq!(bigdecimal_to_json(&dec("0")), Value::from(0));
+        assert_eq!(bigdecimal_to_json(&dec("0.0")), Value::from(0));
+        assert_eq!(bigdecimal_to_json(&dec("0.0000")), Value::from(0));
+    }
+
+    #[test]
+    fn negative_zero_normalizes_to_zero() {
+        // BigDecimal normalises -0 to 0; emit as integer zero so the wire
+        // form does not leak a meaningless minus sign.
+        let v = bigdecimal_to_json(&dec("-0"));
+        assert_eq!(v, Value::from(0));
+        let v = bigdecimal_to_json(&dec("-0.000"));
+        assert_eq!(v, Value::from(0));
+    }
+
+    #[test]
+    fn i64_min_uses_integer_branch() {
+        let v = bigdecimal_to_json(&dec(&i64::MIN.to_string()));
+        assert_eq!(v, Value::Number(i64::MIN.into()));
+    }
+
+    #[test]
+    fn integer_one_past_i64_max_is_string() {
+        // 9223372036854775808 = i64::MAX + 1. is_integer() is true but
+        // to_i64() returns None; the digit gate (19 > 15) routes to string.
+        let v = bigdecimal_to_json(&dec("9223372036854775808"));
+        assert_eq!(v, Value::String("9223372036854775808".to_string()));
+    }
+
+    #[test]
+    fn very_large_integer_is_string() {
+        // 25-digit integer beyond i64 and beyond f64-safe digit count.
+        let v = bigdecimal_to_json(&dec("1234567890123456789012345"));
+        let Value::String(s) = v else {
+            panic!("expected string for huge integer");
+        };
+        assert_eq!(s, "1234567890123456789012345");
+    }
+
+    #[test]
+    fn tiny_fraction_within_digit_budget_is_number() {
+        // 1e-30 has mantissa "1" (1 digit). f64 can represent this magnitude
+        // (denormal range is ~1e-308), so the value-driven rule emits a
+        // JSON number — not a string — even though it looks "extreme".
+        let v = bigdecimal_to_json(&dec("1e-30"));
+        let Value::Number(n) = v else {
+            panic!("expected JSON number for tiny fraction");
+        };
+        let f = n.as_f64().expect("f64 representable");
+        assert!((f - 1e-30).abs() < 1e-40);
+    }
+
+    #[test]
+    fn integer_15_digits_uses_integer_branch() {
+        // 15-digit integer fits in i64 easily; integer fast-path wins.
+        let v = bigdecimal_to_json(&dec("123456789012345"));
+        assert_eq!(v, Value::Number(123_456_789_012_345_i64.into()));
+    }
+
+    #[test]
+    fn f64_underflow_falls_back_to_string() {
+        // 1e-1000 is below the f64 denormal floor (~5e-324); BigDecimal's
+        // `to_f64` rounds it to 0.0. Without the underflow guard, the
+        // shape rule would emit JSON `0` and silently lose the value.
+        let v = bigdecimal_to_json(&dec("1e-1000"));
+        let Value::String(s) = v else {
+            panic!("expected string for f64-underflow tiny fraction, got {v:?}");
+        };
+        // BigDecimal::Display emits scientific form for extreme exponents.
+        let lower = s.to_ascii_lowercase();
+        assert!(
+            lower.contains("e-1000") || lower.starts_with("0.0"),
+            "must preserve magnitude: {s}"
+        );
+    }
+
+    #[test]
+    fn negative_f64_underflow_falls_back_to_string() {
+        let v = bigdecimal_to_json(&dec("-1e-500"));
+        let Value::String(s) = v else {
+            panic!("expected string for negative-tiny underflow, got {v:?}");
+        };
+        assert!(s.starts_with('-'), "negative sign preserved: {s}");
+    }
+
+    #[test]
+    fn near_underflow_within_f64_range_is_number() {
+        // 1e-300 is comfortably within f64's normal range (~2.2e-308 min);
+        // must emit as JSON number — guard must not over-trigger.
+        let v = bigdecimal_to_json(&dec("1e-300"));
+        let Value::Number(n) = v else {
+            panic!("1e-300 must emit as JSON number, got {v:?}");
+        };
+        let f = n.as_f64().expect("number is f64");
+        assert!((f / 1e-300 - 1.0).abs() < 1e-10, "round-trip preserved: {f}");
+    }
+
+    #[test]
+    fn non_integer_with_negative_scale_is_handled() {
+        // 1.23e5 = 123000 — integer-valued after normalisation, so the
+        // integer fast-path applies; verifies that the digit-gate fallback
+        // does not double-count digits for negative-scale representations
+        // that normalise to whole numbers.
+        let v = bigdecimal_to_json(&dec("1.23e5"));
+        assert_eq!(v, Value::from(123_000));
     }
 }
