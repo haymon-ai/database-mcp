@@ -2,6 +2,8 @@
 
 use std::collections::HashSet;
 
+use dbmcp_config::{PiiCategory, PiiConfig};
+
 use crate::error::AnalyzerBuildError;
 use crate::overlap;
 use crate::recognizer::{Category, EntityType, Recognizer, Severity};
@@ -87,7 +89,7 @@ impl Analyzer {
         self.recognizers.iter().map(std::convert::AsRef::as_ref)
     }
 
-    /// Resolve a [`dbmcp_config::PiiConfig`] to an [`Analyzer`].
+    /// Resolve a [`PiiConfig`] to an [`Analyzer`].
     ///
     /// - `categories` unset → [`Analyzer::with_defaults`] (the legacy 8 v1
     ///   recognizers; FR-302 backward-compat).
@@ -95,8 +97,8 @@ impl Analyzer {
     /// - On builder error, falls back to `with_defaults` and logs at `warn`
     ///   level so a misconfiguration never disables redaction silently.
     #[must_use]
-    pub fn from_pii_config(cfg: &dbmcp_config::PiiConfig) -> Self {
-        let Some(cats) = cfg.categories.as_ref() else {
+    pub fn from_pii_config(config: &PiiConfig) -> Self {
+        let Some(cats) = config.categories.as_ref() else {
             return Self::with_defaults();
         };
         match Self::builder()
@@ -116,16 +118,15 @@ impl Analyzer {
     }
 }
 
-fn map_category(c: dbmcp_config::PiiCategory) -> crate::recognizer::Category {
-    use dbmcp_config::PiiCategory as W;
+fn map_category(c: PiiCategory) -> Category {
     match c {
-        W::Personal => crate::recognizer::Category::Personal,
-        W::Financial => crate::recognizer::Category::Financial,
-        W::Government => crate::recognizer::Category::Government,
-        W::Contact => crate::recognizer::Category::Contact,
-        W::Network => crate::recognizer::Category::Network,
-        W::DigitalIdentity => crate::recognizer::Category::DigitalIdentity,
-        W::Crypto => crate::recognizer::Category::Crypto,
+        PiiCategory::Personal => Category::Personal,
+        PiiCategory::Financial => Category::Financial,
+        PiiCategory::Government => Category::Government,
+        PiiCategory::Contact => Category::Contact,
+        PiiCategory::Network => Category::Network,
+        PiiCategory::DigitalIdentity => Category::DigitalIdentity,
+        PiiCategory::Crypto => Category::Crypto,
     }
 }
 

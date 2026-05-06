@@ -7,7 +7,7 @@
 //! configured [`DatabaseBackend`] onto the matching concrete adapter.
 
 use clap::Args;
-use dbmcp_config::{Config, ConfigErrors, DatabaseBackend, DatabaseConfig, PiiConfig, PiiOperator};
+use dbmcp_config::{Config, ConfigErrors, DatabaseBackend, DatabaseConfig, PiiCategory, PiiConfig, PiiOperator};
 use dbmcp_mysql::MysqlHandler;
 use dbmcp_postgres::PostgresHandler;
 use dbmcp_sqlite::SqliteHandler;
@@ -178,7 +178,7 @@ pub(crate) struct PiiArguments {
         value_delimiter = ',',
         num_args = 1..,
     )]
-    pub(crate) categories: Option<Vec<dbmcp_config::PiiCategory>>,
+    pub(crate) categories: Option<Vec<PiiCategory>>,
 }
 
 impl TryFrom<&PiiArguments> for PiiConfig {
@@ -220,7 +220,7 @@ mod tests {
     use clap::{CommandFactory, Parser};
 
     use super::{DatabaseArguments, PiiArguments};
-    use dbmcp_config::{ConfigError, DatabaseConfig, PiiConfig, PiiOperator};
+    use dbmcp_config::{ConfigError, DatabaseConfig, PiiCategory, PiiConfig, PiiOperator};
 
     #[derive(Debug, Parser)]
     #[command(no_binary_name = true)]
@@ -415,7 +415,6 @@ mod tests {
 
     #[test]
     fn clap_pii_categories_comma_separated() {
-        use dbmcp_config::PiiCategory;
         clear_pii_env();
         let cli = TestCli::try_parse_from(["--pii-categories", "financial,government"])
             .expect("comma-separated categories parse");
@@ -425,7 +424,6 @@ mod tests {
 
     #[test]
     fn clap_pii_categories_kebab_digital_identity() {
-        use dbmcp_config::PiiCategory;
         clear_pii_env();
         let cli =
             TestCli::try_parse_from(["--pii-categories", "digital-identity"]).expect("digital-identity kebab parses");

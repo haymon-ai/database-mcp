@@ -6,7 +6,7 @@
 //! per-tool implementations call.
 
 use dbmcp_config::{Config, DatabaseConfig};
-use dbmcp_pii::Redactor;
+use dbmcp_pii::{Analyzer, Redactor};
 use dbmcp_server::{Server, server_info};
 use rmcp::RoleServer;
 use rmcp::handler::server::router::tool::ToolRouter;
@@ -71,12 +71,10 @@ impl SqliteHandler {
         Self {
             config: config.database.clone(),
             connection: SqliteConnection::new(&config.database),
-            redactor: config.pii.enabled.then(|| {
-                Redactor::new(
-                    dbmcp_pii::Analyzer::from_pii_config(&config.pii),
-                    config.pii.operator.into(),
-                )
-            }),
+            redactor: config
+                .pii
+                .enabled
+                .then(|| Redactor::new(Analyzer::from_pii_config(&config.pii), config.pii.operator.into())),
             tool_router: build_tool_router(config.database.read_only),
         }
     }
