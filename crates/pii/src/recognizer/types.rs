@@ -63,7 +63,7 @@ pub trait Validator: Send + Sync {
     ///
     /// Default impl delegates to [`Validator::validate`], so existing impls keep
     /// working unchanged. Validators that depend on surrounding text — e.g.
-    /// [`super::KeywordContextValidator`] — override this method.
+    /// [`super::KeywordValidator`] — override this method.
     fn validate_with_context(&self, candidate: &str, full_text: &str, span: Range<usize>) -> ValidationOutcome {
         let _ = (full_text, span);
         self.validate(candidate)

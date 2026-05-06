@@ -3,12 +3,11 @@
 //! Used by recognizers whose regex is too weak to stand alone (e.g. `CVV`
 //! matching `\d{3,4}`). Returns `Valid` only when one of a configured keyword
 //! set appears within ±N characters of the candidate span; otherwise returns
-//! `Invalid` (drop the match). Strict mode mandated by FR-204 / clarification
-//! 2026-05-06 Q2.
+//! `Invalid` (drop the match).
 
 use std::ops::Range;
 
-use super::types::{ValidationOutcome, Validator};
+use crate::recognizer::{ValidationOutcome, Validator};
 
 /// Default character window either side of the candidate span.
 pub const DEFAULT_WINDOW: usize = 64;
@@ -20,21 +19,21 @@ pub const DEFAULT_WINDOW: usize = 64;
 /// which the `regex` crate optimises into an Aho-Corasick automaton with
 /// SIMD-accelerated literal scanning. The hot path is one `is_match` call —
 /// no per-call allocation, no per-keyword lowercasing.
-pub struct KeywordContextValidator {
+pub struct KeywordValidator {
     matcher: regex::Regex,
     window: usize,
 }
 
-impl std::fmt::Debug for KeywordContextValidator {
+impl std::fmt::Debug for KeywordValidator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("KeywordContextValidator")
+        f.debug_struct("KeywordValidator")
             .field("pattern", &self.matcher.as_str())
             .field("window", &self.window)
             .finish()
     }
 }
 
-impl KeywordContextValidator {
+impl KeywordValidator {
     /// Build a validator with the default `±64`-character window.
     ///
     /// # Panics
@@ -43,10 +42,7 @@ impl KeywordContextValidator {
     /// every candidate and is always a configuration mistake.
     #[must_use]
     pub fn new(keywords: &'static [&'static str]) -> Self {
-        assert!(
-            !keywords.is_empty(),
-            "KeywordContextValidator requires at least one keyword"
-        );
+        assert!(!keywords.is_empty(), "KeywordValidator requires at least one keyword");
         let alternation = keywords
             .iter()
             .copied()
@@ -71,7 +67,7 @@ impl KeywordContextValidator {
     }
 }
 
-impl Validator for KeywordContextValidator {
+impl Validator for KeywordValidator {
     fn validate(&self, _candidate: &str) -> ValidationOutcome {
         // No surrounding text available — strict mode rejects.
         ValidationOutcome::Invalid
@@ -113,13 +109,13 @@ mod tests {
 
     #[test]
     fn invalid_without_context() {
-        let v = KeywordContextValidator::new(KEYWORDS);
+        let v = KeywordValidator::new(KEYWORDS);
         assert_eq!(v.validate("123"), ValidationOutcome::Invalid);
     }
 
     #[test]
     fn valid_with_keyword_before() {
-        let v = KeywordContextValidator::new(KEYWORDS);
+        let v = KeywordValidator::new(KEYWORDS);
         let text = "cvv: 123";
         let span = 5..8; // "123"
         assert_eq!(v.validate_with_context("123", text, span), ValidationOutcome::Valid);
@@ -127,7 +123,7 @@ mod tests {
 
     #[test]
     fn valid_with_keyword_after() {
-        let v = KeywordContextValidator::new(KEYWORDS);
+        let v = KeywordValidator::new(KEYWORDS);
         let text = "code 123 (cvc)";
         let span = 5..8;
         assert_eq!(v.validate_with_context("123", text, span), ValidationOutcome::Valid);
@@ -135,7 +131,7 @@ mod tests {
 
     #[test]
     fn invalid_outside_window() {
-        let v = KeywordContextValidator::new(KEYWORDS).with_window(2);
+        let v = KeywordValidator::new(KEYWORDS).with_window(2);
         let text = "cvv:                 123";
         let span = 21..24;
         assert_eq!(v.validate_with_context("123", text, span), ValidationOutcome::Invalid);
@@ -143,7 +139,7 @@ mod tests {
 
     #[test]
     fn case_insensitive_keyword() {
-        let v = KeywordContextValidator::new(KEYWORDS);
+        let v = KeywordValidator::new(KEYWORDS);
         let text = "CVV: 123";
         let span = 5..8;
         assert_eq!(v.validate_with_context("123", text, span), ValidationOutcome::Valid);
