@@ -1,6 +1,6 @@
 //! `IBAN_CODE` recognizer with mod-97 validator.
 
-use crate::recognizer::{Category, IbanValidator, Pattern, Severity, entity};
+use crate::recognizer::{Category, IbanValidator, Pattern, entity};
 use crate::regex::Regex;
 use crate::score::Score;
 
@@ -22,5 +22,4 @@ pub fn iban() -> Pattern {
         .with_name("IbanRecognizer")
         .with_validator(IbanValidator)
         .with_category(Category::Financial)
-        .with_severity(Severity::High)
 }

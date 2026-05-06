@@ -3,7 +3,7 @@
 //! Regex-only — E.164 plus region-targeted patterns for `US`, `UK`, `DE`,
 //! all at score `0.4`. `libphonenumber`-grade parse/validation deferred.
 
-use crate::recognizer::{Category, Pattern, Severity, entity};
+use crate::recognizer::{Category, Pattern, entity};
 use crate::regex::Regex;
 use crate::score::Score;
 
@@ -25,5 +25,4 @@ pub fn phone_number() -> Pattern {
         .expect("non-empty pattern list")
         .with_name("PhoneRecognizer")
         .with_category(Category::Contact)
-        .with_severity(Severity::Medium)
 }

@@ -6,7 +6,7 @@ use dbmcp_config::{PiiCategory, PiiConfig};
 
 use crate::error::AnalyzerBuildError;
 use crate::overlap;
-use crate::recognizer::{Category, EntityType, Recognizer, Severity};
+use crate::recognizer::{Category, EntityType, Recognizer};
 use crate::result::RecognizerResult;
 use crate::score::Score;
 
@@ -77,7 +77,7 @@ impl Analyzer {
         overlap::resolve(results)
     }
 
-    /// Construct a fresh [`Builder`] for category / severity routing.
+    /// Construct a fresh [`Builder`] for category routing.
     #[must_use]
     pub fn builder() -> Builder {
         Builder::default()
@@ -126,14 +126,13 @@ fn map_category(c: PiiCategory) -> Category {
 }
 
 /// Typed builder that filters the merged `all() ∪ all_extended()` registry by
-/// category / severity floor.
+/// category.
 ///
 /// `Analyzer::with_defaults()` stays frozen at the original 8 recognizers
 /// regardless of this builder.
 #[derive(Default, Debug)]
 pub struct Builder {
     categories: Option<Vec<Category>>,
-    min_severity: Option<Severity>,
     allow_empty_categories: bool,
 }
 
@@ -148,13 +147,6 @@ impl Builder {
             }
         }
         self.categories = Some(out);
-        self
-    }
-
-    /// Set the severity floor for the analyzer.
-    #[must_use]
-    pub fn min_severity(mut self, severity: Severity) -> Self {
-        self.min_severity = Some(severity);
         self
     }
 
@@ -175,19 +167,17 @@ impl Builder {
     /// not set).
     pub fn build(self) -> Result<Analyzer, AnalyzerBuildError> {
         let effective_cats = self.categories;
-        let floor = self.min_severity;
 
-        // If neither categories nor floor is set, fall through to
-        // with_defaults() — the 8 default recognizers, no filter.
-        if effective_cats.is_none() && floor.is_none() {
+        // If categories is unset, fall through to with_defaults() — the 8
+        // default recognizers, no filter.
+        if effective_cats.is_none() {
             return Ok(Analyzer::with_defaults());
         }
 
         let cat_ok = |c: Category| effective_cats.as_ref().is_none_or(|cats| cats.contains(&c));
-        let sev_ok = |s: Severity| floor.is_none_or(|min| s >= min);
         let kept: Vec<Box<dyn Recognizer>> = crate::recognizer::pattern::all()
             .into_iter()
-            .filter(|r| cat_ok(r.category()) && sev_ok(r.severity()))
+            .filter(|r| cat_ok(r.category()))
             .map(|r| Box::new(r) as Box<dyn Recognizer>)
             .collect();
 

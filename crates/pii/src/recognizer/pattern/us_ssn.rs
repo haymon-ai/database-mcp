@@ -4,7 +4,7 @@
 //! are rejected by [`UsSsnValidator`] (replaces Presidio's negative-lookahead
 //! constructs).
 
-use crate::recognizer::{Category, Pattern, Severity, UsSsnValidator, entity};
+use crate::recognizer::{Category, Pattern, UsSsnValidator, entity};
 use crate::regex::Regex;
 use crate::score::Score;
 
@@ -22,5 +22,4 @@ pub fn us_ssn() -> Pattern {
         .with_name("UsSsnRecognizer")
         .with_validator(UsSsnValidator)
         .with_category(Category::Government)
-        .with_severity(Severity::Critical)
 }

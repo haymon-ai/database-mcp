@@ -4,7 +4,6 @@ use std::borrow::Cow;
 use std::ops::Range;
 
 use super::category::Category;
-use super::severity::Severity;
 use crate::analyzer::AnalyzeOptions;
 use crate::result::RecognizerResult;
 
@@ -88,14 +87,5 @@ pub trait Recognizer: Send + Sync {
     /// [`super::Pattern::with_category`].
     fn category(&self) -> Category {
         Category::Personal
-    }
-
-    /// Severity tier for this recognizer's matches.
-    ///
-    /// Default impl returns [`Severity::Medium`] so external impls keep
-    /// compiling. Built-ins override via
-    /// [`super::Pattern::with_severity`].
-    fn severity(&self) -> Severity {
-        Severity::Medium
     }
 }

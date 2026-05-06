@@ -6,9 +6,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 
-use dbmcp_pii::{
-    AnalyzeOptions, Analyzer, AnalyzerBuildError, Category, EntityType, MAX_SCORE, Score, Severity, entity,
-};
+use dbmcp_pii::{AnalyzeOptions, Analyzer, AnalyzerBuildError, Category, EntityType, MAX_SCORE, Score, entity};
 
 const DEFAULT_NAMES: &[&str] = &[
     "EMAIL_ADDRESS",
@@ -246,12 +244,12 @@ fn tag_table_is_frozen() {
         .build()
         .expect("build");
 
-    let mut tags: Vec<(String, Category, Severity)> = analyzer
+    let mut tags: Vec<(String, Category)> = analyzer
         .recognizers()
         .flat_map(|r| {
             r.supported_entities()
                 .iter()
-                .map(|e| (e.as_str().to_string(), r.category(), r.severity()))
+                .map(|e| (e.as_str().to_string(), r.category()))
                 .collect::<Vec<_>>()
         })
         .collect();
@@ -259,17 +257,17 @@ fn tag_table_is_frozen() {
 
     // Frozen 8-row tag table for the built-in recognizers.
     let expected = vec![
-        ("CREDIT_CARD".to_string(), Category::Financial, Severity::Critical),
-        ("CRYPTO".to_string(), Category::Crypto, Severity::High),
-        ("EMAIL_ADDRESS".to_string(), Category::Personal, Severity::High),
-        ("IBAN_CODE".to_string(), Category::Financial, Severity::High),
-        ("IP_ADDRESS".to_string(), Category::Network, Severity::Medium),
-        ("PHONE_NUMBER".to_string(), Category::Contact, Severity::Medium),
-        ("URL".to_string(), Category::Network, Severity::Low),
-        ("US_SSN".to_string(), Category::Government, Severity::Critical),
+        ("CREDIT_CARD".to_string(), Category::Financial),
+        ("CRYPTO".to_string(), Category::Crypto),
+        ("EMAIL_ADDRESS".to_string(), Category::Personal),
+        ("IBAN_CODE".to_string(), Category::Financial),
+        ("IP_ADDRESS".to_string(), Category::Network),
+        ("PHONE_NUMBER".to_string(), Category::Contact),
+        ("URL".to_string(), Category::Network),
+        ("US_SSN".to_string(), Category::Government),
     ];
 
-    assert_eq!(tags, expected, "tag table drifted from contracts/public-api.md");
+    assert_eq!(tags, expected, "tag table drifted");
 }
 
 #[test]
@@ -280,11 +278,10 @@ fn override_semantics_neither_set_equals_with_defaults() {
 
 #[test]
 fn categories_filter_registry() {
-    // categories=[Network] with floor=Low keeps URL/IP_ADDRESS/MAC_ADDRESS,
-    // drops Financial recognizers like CREDIT_CARD / IBAN_CODE.
+    // categories=[Network] keeps URL/IP_ADDRESS, drops Financial recognizers
+    // like CREDIT_CARD / IBAN_CODE.
     let a = Analyzer::builder()
         .categories([Category::Network])
-        .min_severity(Severity::Low)
         .build()
         .expect("build");
     let names = entity_names(&a);
@@ -307,58 +304,21 @@ fn categories_filter_registry() {
 }
 
 #[test]
-fn min_severity_filters_low_tier() {
-    // floor=High drops URL (Low), IP_ADDRESS (Medium), PHONE_NUMBER (Medium).
-    // EMAIL_ADDRESS (High) stays. allow_empty_categories(true) so Contact
-    // (only PHONE_NUMBER@Medium and EMAIL_ADDRESS@High) doesn't error when
-    // requested.
-    let a = Analyzer::builder()
-        .categories([
-            Category::Personal,
-            Category::Contact,
-            Category::Government,
-            Category::Financial,
-            Category::Network,
-            Category::DigitalIdentity,
-        ])
-        .min_severity(Severity::High)
-        .allow_empty_categories(true)
-        .build()
-        .expect("build");
-    let names = entity_names(&a);
-    assert!(names.contains(&"EMAIL_ADDRESS".to_string()));
-    assert!(
-        !names.contains(&"URL".to_string()),
-        "URL severity Low must drop when floor=High"
-    );
-    assert!(
-        !names.contains(&"IP_ADDRESS".to_string()),
-        "IP_ADDRESS severity Medium must drop when floor=High"
-    );
-    assert!(
-        !names.contains(&"PHONE_NUMBER".to_string()),
-        "PHONE_NUMBER severity Medium must drop when floor=High"
-    );
-}
-
-#[test]
 fn empty_category_errors_without_opt_out() {
-    // Network category contains only Low/Medium recognizers (URL Low, IP_ADDRESS Medium,
-    // MAC_ADDRESS Low). A Critical severity floor empties it entirely.
+    // No built-in recognizer tags Category::DigitalIdentity, so requesting it
+    // alone trips the empty-category guard.
     let err = Analyzer::builder()
-        .categories([Category::Network])
-        .min_severity(Severity::Critical)
+        .categories([Category::DigitalIdentity])
         .build()
         .unwrap_err();
     let AnalyzerBuildError::EmptyCategory(cat) = err;
-    assert_eq!(cat, Category::Network);
+    assert_eq!(cat, Category::DigitalIdentity);
 }
 
 #[test]
 fn empty_category_allowed_when_opt_in() {
     let a = Analyzer::builder()
-        .categories([Category::Network])
-        .min_severity(Severity::Critical)
+        .categories([Category::DigitalIdentity])
         .allow_empty_categories(true)
         .build()
         .expect("build");

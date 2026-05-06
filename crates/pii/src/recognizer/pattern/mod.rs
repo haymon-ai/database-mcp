@@ -8,7 +8,7 @@
 use std::borrow::Cow;
 use std::slice;
 
-use super::{Category, EntityType, NoopValidator, Recognizer, Severity, ValidationOutcome, Validator};
+use super::{Category, EntityType, NoopValidator, Recognizer, ValidationOutcome, Validator};
 use crate::analyzer::AnalyzeOptions;
 use crate::error::RecognizerError;
 use crate::regex::Regex;
@@ -42,7 +42,6 @@ pub struct Pattern {
     patterns: Vec<Regex>,
     validator: Box<dyn Validator>,
     category: Category,
-    severity: Severity,
 }
 
 impl std::fmt::Debug for Pattern {
@@ -72,7 +71,6 @@ impl Pattern {
             patterns,
             validator: Box::new(NoopValidator),
             category: Category::Personal,
-            severity: Severity::Medium,
         })
     }
 
@@ -100,23 +98,10 @@ impl Pattern {
         self
     }
 
-    /// Tag this recognizer with the given severity tier.
-    #[must_use]
-    pub fn with_severity(mut self, severity: Severity) -> Self {
-        self.severity = severity;
-        self
-    }
-
     /// Inherent accessor for the recognizer's category tag.
     #[must_use]
     pub fn category(&self) -> Category {
         self.category
-    }
-
-    /// Inherent accessor for the recognizer's severity tag.
-    #[must_use]
-    pub fn severity(&self) -> Severity {
-        self.severity
     }
 
     fn build_result(&self, pattern: &Regex, start: usize, end: usize, text: &str) -> Option<RecognizerResult> {
@@ -173,9 +158,5 @@ impl Recognizer for Pattern {
 
     fn category(&self) -> Category {
         self.category
-    }
-
-    fn severity(&self) -> Severity {
-        self.severity
     }
 }

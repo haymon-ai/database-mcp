@@ -2,7 +2,7 @@
 //!
 //! Pattern adapted from Presidio's `EmailRecognizer.PATTERNS["Email (Medium)"]`.
 
-use crate::recognizer::{Category, Pattern, Severity, entity};
+use crate::recognizer::{Category, Pattern, entity};
 use crate::regex::Regex;
 use crate::score::Score;
 
@@ -24,5 +24,4 @@ pub fn email() -> Pattern {
         .expect("non-empty pattern list")
         .with_name("EmailRecognizer")
         .with_category(Category::Personal)
-        .with_severity(Severity::High)
 }

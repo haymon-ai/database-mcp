@@ -2,7 +2,7 @@
 //!
 //! Pattern adapted from Presidio's `CreditCardRecognizer.PATTERNS["All Credit Cards (weak)"]`.
 
-use crate::recognizer::{Category, LuhnValidator, Pattern, Severity, entity};
+use crate::recognizer::{Category, LuhnValidator, Pattern, entity};
 use crate::regex::Regex;
 use crate::score::Score;
 
@@ -24,5 +24,4 @@ pub fn credit_card() -> Pattern {
         .with_name("CreditCardRecognizer")
         .with_validator(LuhnValidator)
         .with_category(Category::Financial)
-        .with_severity(Severity::Critical)
 }

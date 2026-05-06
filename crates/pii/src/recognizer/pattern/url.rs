@@ -1,6 +1,6 @@
 //! `URL` recognizer.
 
-use crate::recognizer::{Category, Pattern, Severity, entity};
+use crate::recognizer::{Category, Pattern, entity};
 use crate::regex::Regex;
 use crate::score::Score;
 
@@ -21,5 +21,4 @@ pub fn url() -> Pattern {
         .expect("non-empty pattern list")
         .with_name("UrlRecognizer")
         .with_category(Category::Network)
-        .with_severity(Severity::Low)
 }

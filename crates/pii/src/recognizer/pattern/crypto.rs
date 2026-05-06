@@ -2,7 +2,7 @@
 //!
 //! No checksum validator (`Base58Check` / `EIP-55`) yet — future work.
 
-use crate::recognizer::{Category, Pattern, Severity, entity};
+use crate::recognizer::{Category, Pattern, entity};
 use crate::regex::Regex;
 use crate::score::Score;
 
@@ -22,5 +22,4 @@ pub fn crypto() -> Pattern {
         .expect("non-empty pattern list")
         .with_name("CryptoRecognizer")
         .with_category(Category::Crypto)
-        .with_severity(Severity::High)
 }
