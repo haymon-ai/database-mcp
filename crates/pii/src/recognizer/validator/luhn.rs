@@ -31,7 +31,7 @@ impl Validator for LuhnValidator {
 }
 
 /// Returns true iff the right-to-left Luhn weighted sum over `digits` is divisible by 10.
-fn luhn_passes<I: IntoIterator<Item = u32>>(digits: I) -> bool
+pub(super) fn luhn_passes<I: IntoIterator<Item = u32>>(digits: I) -> bool
 where
     I::IntoIter: DoubleEndedIterator,
 {

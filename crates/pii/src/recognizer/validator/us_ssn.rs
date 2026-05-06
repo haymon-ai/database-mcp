@@ -24,7 +24,7 @@ impl Validator for UsSsnValidator {
 ///
 /// Iterates bytes (not chars) since every candidate that reaches a numeric
 /// validator is ASCII-only post-regex-match.
-fn collect_digits<const N: usize>(candidate: &str) -> Option<[u32; N]> {
+pub(super) fn collect_digits<const N: usize>(candidate: &str) -> Option<[u32; N]> {
     let mut out = [0u32; N];
     let mut i = 0usize;
     for &b in candidate.as_bytes() {

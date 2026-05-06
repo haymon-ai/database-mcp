@@ -2,8 +2,9 @@
 //!
 //! [`Pattern`] is the generic regex/checksum recognizer used by every built-in
 //! entity type and by user-supplied custom recognizers. The submodules expose
-//! pre-configured constructors — the eight built-in entries — registered in
-//! deterministic order so overlap-resolution tie-breaks stay stable.
+//! pre-configured constructors — eight v1 entries plus the catalog-expansion
+//! set — registered in deterministic order so overlap-resolution tie-breaks
+//! stay stable.
 
 use std::borrow::Cow;
 use std::slice;
@@ -16,24 +17,56 @@ use crate::result::{AnalysisExplanation, RecognizerResult};
 use crate::score::{MAX_SCORE, MIN_SCORE};
 
 mod all;
+mod api_key;
+mod bank_account_uk;
 mod credit_card;
 mod crypto;
+mod cvv;
 mod email;
 mod iban;
 mod ip;
+mod itin;
+mod jwt_token;
+mod mac_address;
+mod nhs_number;
+mod nino_uk;
+mod passport_uk;
+mod passport_us;
 mod phone;
+mod private_key;
+mod routing_number_us;
+mod sin_ca;
+mod sort_code_uk;
+mod tax_id_ein;
 mod url;
 mod us_ssn;
+mod vat_number;
 
 pub use all::all;
+pub use api_key::{api_key_aws_secret, api_key_strong};
+pub use bank_account_uk::bank_account_uk;
 pub use credit_card::credit_card;
 pub use crypto::crypto;
+pub use cvv::cvv;
 pub use email::email;
 pub use iban::iban;
 pub use ip::ip_address;
+pub use itin::itin;
+pub use jwt_token::jwt_token;
+pub use mac_address::mac_address;
+pub use nhs_number::nhs_number;
+pub use nino_uk::nino_uk;
+pub use passport_uk::passport_uk;
+pub use passport_us::passport_us;
 pub use phone::phone_number;
+pub use private_key::private_key;
+pub use routing_number_us::routing_number_us;
+pub use sin_ca::sin_ca;
+pub use sort_code_uk::sort_code_uk;
+pub use tax_id_ein::tax_id_ein;
 pub use url::url;
 pub use us_ssn::us_ssn;
+pub use vat_number::vat_number;
 
 /// Pattern-driven recognizer used by every built-in entity type and by user-supplied custom recognizers.
 pub struct Pattern {

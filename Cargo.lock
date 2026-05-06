@@ -549,6 +549,7 @@ dependencies = [
 name = "dbmcp-pii"
 version = "0.10.1"
 dependencies = [
+ "base64",
  "dbmcp-config",
  "hmac",
  "proptest",

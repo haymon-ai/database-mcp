@@ -45,7 +45,7 @@ impl Analyzer {
         Self::default()
     }
 
-    /// Build an analyzer pre-loaded with the eight default recognizers.
+    /// Build an analyzer pre-loaded with the default recognizer registry.
     #[must_use]
     pub fn with_defaults() -> Self {
         let recognizers = crate::recognizer::pattern::all()
@@ -125,11 +125,7 @@ fn map_category(c: PiiCategory) -> Category {
     }
 }
 
-/// Typed builder that filters the merged `all() ∪ all_extended()` registry by
-/// category.
-///
-/// `Analyzer::with_defaults()` stays frozen at the original 8 recognizers
-/// regardless of this builder.
+/// Typed builder that filters the `all()` registry by category.
 #[derive(Default, Debug)]
 pub struct Builder {
     categories: Option<Vec<Category>>,
@@ -168,8 +164,8 @@ impl Builder {
     pub fn build(self) -> Result<Analyzer, AnalyzerBuildError> {
         let effective_cats = self.categories;
 
-        // If categories is unset, fall through to with_defaults() — the 8
-        // default recognizers, no filter.
+        // If categories is unset, fall through to with_defaults() — default
+        // recognizers, no filter.
         if effective_cats.is_none() {
             return Ok(Analyzer::with_defaults());
         }

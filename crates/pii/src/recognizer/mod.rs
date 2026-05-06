@@ -11,5 +11,7 @@ pub use category::{Category, ParseCategoryError};
 pub use pattern::Pattern;
 pub use types::{EntityType, Recognizer, ValidationOutcome, Validator};
 pub use validator::{
-    AndValidator, IbanValidator, IpAddressValidator, KeywordValidator, LuhnValidator, NoopValidator, UsSsnValidator,
+    AbaRoutingValidator, AndValidator, EinPrefixValidator, IbanValidator, IpAddressValidator, ItinRangeValidator,
+    JwtHeaderValidator, KeywordValidator, LuhnSinValidator, LuhnValidator, Mod11NhsValidator, NinoBlocklistValidator,
+    NoopValidator, PrivateKeyTypeValidator, UsSsnValidator, VatCountryLengthValidator,
 };
