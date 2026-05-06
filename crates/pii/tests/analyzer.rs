@@ -88,7 +88,6 @@ fn assert_corpus(file: &str, expected: &EntityType) {
 fn assert_corpus_full(file: &str, expected: &EntityType) {
     let analyzer = Analyzer::builder()
         .categories(Category::ALL.iter().copied())
-        .allow_empty_categories(true)
         .build()
         .expect("build full registry");
     assert_corpus_with(&analyzer, file, expected);

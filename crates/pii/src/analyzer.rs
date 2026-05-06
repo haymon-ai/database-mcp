@@ -121,7 +121,6 @@ fn map_category(c: PiiCategory) -> Category {
 #[derive(Default, Debug)]
 pub struct Builder {
     categories: Option<Vec<Category>>,
-    allow_empty_categories: bool,
 }
 
 impl Builder {
@@ -138,44 +137,26 @@ impl Builder {
         self
     }
 
-    /// When `true`, [`Builder::build`] does not error if a requested category
-    /// resolves to zero recognizers in the current registry.
-    #[must_use]
-    pub fn allow_empty_categories(mut self, allow: bool) -> Self {
-        self.allow_empty_categories = allow;
-        self
-    }
-
     /// Build the [`Analyzer`] applying the resolved filters.
     ///
     /// # Errors
     ///
     /// Returns [`AnalyzerBuildError::EmptyCategory`] if a requested category
-    /// has zero recognizers tagging it (and `allow_empty_categories(true)` was
-    /// not set).
+    /// has zero recognizers tagging it.
     pub fn build(self) -> Result<Analyzer, AnalyzerBuildError> {
-        let effective_cats = self.categories;
-
-        // If categories is unset, fall through to with_defaults() — default
-        // recognizers, no filter.
-        if effective_cats.is_none() {
+        let Some(cats) = self.categories else {
             return Ok(Analyzer::with_defaults());
-        }
+        };
 
-        let cat_ok = |c: Category| effective_cats.as_ref().is_none_or(|cats| cats.contains(&c));
         let kept: Vec<Box<dyn Recognizer>> = crate::recognizer::rule::all()
             .into_iter()
-            .filter(|r| cat_ok(r.category()))
+            .filter(|r| cats.contains(&r.category()))
             .map(|r| Box::new(r) as Box<dyn Recognizer>)
             .collect();
 
-        if !self.allow_empty_categories
-            && let Some(cats) = &effective_cats
-        {
-            for &cat in cats {
-                if !kept.iter().any(|r| r.category() == cat) {
-                    return Err(AnalyzerBuildError::EmptyCategory(cat));
-                }
+        for &cat in &cats {
+            if !kept.iter().any(|r| r.category() == cat) {
+                return Err(AnalyzerBuildError::EmptyCategory(cat));
             }
         }
 

@@ -2,7 +2,6 @@
 
 use std::borrow::Cow;
 
-use crate::error::OperatorError;
 use crate::recognizer::EntityType;
 
 use super::{hash, mask};
@@ -44,15 +43,10 @@ pub enum Operator {
     },
     /// Replace the span with the empty string.
     Redact,
-    /// Replace the span with a hex digest (bare or HMAC-keyed).
+    /// Replace the span with a bare hex digest.
     Hash {
         /// Hash algorithm to use.
         algorithm: HashAlgorithm,
-        /// `Some(key)` switches to HMAC-keyed hashing; `None` is bare digest.
-        ///
-        /// Constructing the variant directly with `Some(empty)` violates the
-        /// invariant enforced by [`Operator::hash`]; prefer the constructor.
-        hash_key: Option<Vec<u8>>,
     },
 }
 
@@ -93,16 +87,10 @@ impl Operator {
         }
     }
 
-    /// Construct a hash operator; rejects an empty `hash_key`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`OperatorError::EmptyHashKey`] when `hash_key` is `Some(empty)`.
-    pub fn hash(algorithm: HashAlgorithm, hash_key: Option<Vec<u8>>) -> Result<Self, OperatorError> {
-        if matches!(hash_key.as_deref(), Some(k) if k.is_empty()) {
-            return Err(OperatorError::EmptyHashKey);
-        }
-        Ok(Self::Hash { algorithm, hash_key })
+    /// Construct a hash operator.
+    #[must_use]
+    pub const fn hash(algorithm: HashAlgorithm) -> Self {
+        Self::Hash { algorithm }
     }
 
     /// Tag describing this operator's variant.
@@ -129,7 +117,7 @@ impl Operator {
                 from_end,
             } => Cow::Owned(mask::apply(candidate, *masking_char, *chars_to_mask, *from_end)),
             Self::Redact => Cow::Borrowed(""),
-            Self::Hash { algorithm, hash_key } => Cow::Owned(hash::apply(candidate, *algorithm, hash_key.as_deref())),
+            Self::Hash { algorithm } => Cow::Owned(hash::apply(candidate, *algorithm)),
         }
     }
 }

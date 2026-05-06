@@ -160,7 +160,8 @@ impl Redactor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{EntityType, Recognizer, RecognizerResult};
+    use crate::recognizer::Recognizer;
+    use crate::{EntityType, RecognizerResult};
     use dbmcp_config::PiiOperator;
     use serde_json::json;
 

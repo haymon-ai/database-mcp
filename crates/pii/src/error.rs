@@ -24,21 +24,10 @@ pub enum RecognizerError {
     EmptyPatternList,
 }
 
-/// Errors that surface when constructing or applying an [`crate::Operator`].
-#[derive(Debug, Error)]
-pub enum OperatorError {
-    /// `hash_key` was provided but empty; reject up front rather than silently downgrade to bare digest.
-    #[error("hash_key must be non-empty when provided")]
-    EmptyHashKey,
-}
-
 /// Errors that surface from [`crate::analyzer::Builder::build`].
 #[derive(Debug, Error)]
 pub enum AnalyzerBuildError {
     /// A requested category resolved to zero recognizers in the merged registry.
-    ///
-    /// Callers can opt out of this check via
-    /// [`crate::analyzer::Builder::allow_empty_categories`].
     #[error("category {0:?} requested but no recognizer in registry tags it")]
     EmptyCategory(crate::recognizer::Category),
 }
