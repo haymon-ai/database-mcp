@@ -2,7 +2,6 @@
 //! promotion, `AnalyzeOptions` filters, overlap rules), and the
 //! catalog-expansion builder contract.
 
-use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 
@@ -285,28 +284,11 @@ fn ct_005_min_score_filters_before_overlap() {
     let analyzer = Analyzer::with_defaults();
     let opts = AnalyzeOptions {
         min_score: Score::new(0.95).unwrap(),
-        ..AnalyzeOptions::default()
     };
     // Phone numbers ship at 0.4 → must be filtered out.
     let results = analyzer.analyze("call +14155552671", &opts);
     assert!(
         results.iter().all(|r| r.entity_type != entity::PHONE_NUMBER),
-        "got {results:?}"
-    );
-}
-
-#[test]
-fn ct_005_allow_list_filters_recognizers() {
-    let analyzer = Analyzer::with_defaults();
-    let mut allow = HashSet::new();
-    allow.insert(entity::EMAIL_ADDRESS);
-    let opts = AnalyzeOptions {
-        entity_allow_list: Some(allow),
-        ..AnalyzeOptions::default()
-    };
-    let results = analyzer.analyze("email a@b.com phone +14155552671 url https://x.io", &opts);
-    assert!(
-        results.iter().all(|r| r.entity_type == entity::EMAIL_ADDRESS),
         "got {results:?}"
     );
 }

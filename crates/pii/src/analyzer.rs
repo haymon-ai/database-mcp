@@ -1,12 +1,10 @@
 //! Analyzer engine: registry + entry point + analyze-time options.
 
-use std::collections::HashSet;
-
 use dbmcp_config::{PiiCategory, PiiConfig};
 
 use crate::error::AnalyzerBuildError;
 use crate::overlap;
-use crate::recognizer::{Category, EntityType, Recognizer};
+use crate::recognizer::{Category, Recognizer};
 use crate::result::RecognizerResult;
 use crate::score::Score;
 
@@ -16,8 +14,6 @@ use crate::score::Score;
 /// drop low-confidence matches before overlap resolution.
 #[derive(Debug, Clone, Default)]
 pub struct AnalyzeOptions {
-    /// Restrict the engine to recognizers whose `supported_entities` intersect this set.
-    pub entity_allow_list: Option<HashSet<EntityType>>,
     /// Drop results whose score is below this floor before overlap resolution.
     pub min_score: Score,
 }
@@ -67,10 +63,6 @@ impl Analyzer {
         let results = self
             .recognizers
             .iter()
-            .filter(|r| match &opts.entity_allow_list {
-                Some(allow) => r.supported_entities().iter().any(|e| allow.contains(e)),
-                None => true,
-            })
             .flat_map(|r| r.analyze(text, opts))
             .filter(|r| r.score >= opts.min_score)
             .collect();
