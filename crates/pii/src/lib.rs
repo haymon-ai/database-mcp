@@ -6,8 +6,6 @@
 //! `Redact`, `Hash`). No NLP, no LLM, no network. Not wired into the MCP
 //! server in this iteration.
 //!
-//! See `specs/082-pii-pattern-recognizers/` for the source spec.
-//!
 //! # Quickstart
 //!
 //! ```

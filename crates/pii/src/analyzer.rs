@@ -132,9 +132,8 @@ fn map_category(c: PiiCategory) -> Category {
 /// Typed builder that filters the merged `all() ∪ all_extended()` registry by
 /// category / severity floor.
 ///
-/// See `specs/095-pii-recognizer-catalog/data-model.md` for the resolution
-/// rules. `Analyzer::with_defaults()` stays frozen at the original 8
-/// recognizers regardless of this builder.
+/// `Analyzer::with_defaults()` stays frozen at the original 8 recognizers
+/// regardless of this builder.
 #[derive(Default, Debug)]
 pub struct Builder {
     categories: Option<Vec<Category>>,

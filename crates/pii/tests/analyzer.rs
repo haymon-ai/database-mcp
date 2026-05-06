@@ -1,6 +1,6 @@
-//! `Analyzer` integration tests: CT-002 corpus sweep, CT-003..006 behaviour
-//! (validator promotion, `AnalyzeOptions` filters, overlap rules), and the
-//! catalog-expansion builder contract (US1 / specs/095, FR-105, SC-001/SC-002).
+//! `Analyzer` integration tests: corpus sweep, behaviour (validator
+//! promotion, `AnalyzeOptions` filters, overlap rules), and the
+//! catalog-expansion builder contract.
 
 use std::collections::HashSet;
 use std::fs;

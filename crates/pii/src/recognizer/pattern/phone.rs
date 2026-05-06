@@ -1,8 +1,7 @@
 //! `PHONE_NUMBER` recognizer.
 //!
 //! v1: regex-only — E.164 plus region-targeted patterns for `US`, `UK`, `DE`,
-//! all at score `0.4`. `libphonenumber`-grade parse/validation deferred to a
-//! follow-up spec (see `specs/082-pii-pattern-recognizers/research.md` §R5).
+//! all at score `0.4`. `libphonenumber`-grade parse/validation deferred.
 
 use crate::recognizer::{Category, Pattern, Severity, entity};
 use crate::regex::Regex;
