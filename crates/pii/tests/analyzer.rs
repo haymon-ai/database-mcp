@@ -40,18 +40,7 @@ fn entity_names(a: &Analyzer) -> Vec<String> {
 }
 
 fn assert_corpus(stem: &str, expected: &EntityType) {
-    assert_corpus_with(&Analyzer::with_defaults(), stem, expected);
-}
-
-fn assert_corpus_full(stem: &str, expected: &EntityType) {
-    let analyzer = Analyzer::builder()
-        .categories(Category::ALL.iter().copied())
-        .build()
-        .expect("build full registry");
-    assert_corpus_with(&analyzer, stem, expected);
-}
-
-fn assert_corpus_with(analyzer: &Analyzer, stem: &str, expected: &EntityType) {
+    let analyzer = Analyzer::with_defaults();
     let opts = AnalyzeOptions::default();
     let corpus = Corpus::load(stem);
     assert!(!corpus.positives.is_empty(), "{stem}: no positives");
@@ -116,82 +105,82 @@ fn us_ssn_corpus() {
 
 #[test]
 fn mac_address_corpus() {
-    assert_corpus_full("mac_address", &entity::MAC_ADDRESS);
+    assert_corpus("mac_address", &entity::MAC_ADDRESS);
 }
 
 #[test]
 fn bank_account_uk_corpus() {
-    assert_corpus_full("bank_account_uk", &entity::BANK_ACCOUNT_UK);
+    assert_corpus("bank_account_uk", &entity::BANK_ACCOUNT_UK);
 }
 
 #[test]
 fn sort_code_uk_corpus() {
-    assert_corpus_full("sort_code_uk", &entity::SORT_CODE_UK);
+    assert_corpus("sort_code_uk", &entity::SORT_CODE_UK);
 }
 
 #[test]
 fn routing_number_us_corpus() {
-    assert_corpus_full("routing_number_us", &entity::ROUTING_NUMBER_US);
+    assert_corpus("routing_number_us", &entity::ROUTING_NUMBER_US);
 }
 
 #[test]
 fn cvv_corpus() {
-    assert_corpus_full("cvv", &entity::CVV);
+    assert_corpus("cvv", &entity::CVV);
 }
 
 #[test]
 fn itin_corpus() {
-    assert_corpus_full("itin", &entity::ITIN);
+    assert_corpus("itin", &entity::ITIN);
 }
 
 #[test]
 fn tax_id_ein_corpus() {
-    assert_corpus_full("tax_id_ein", &entity::TAX_ID_EIN);
+    assert_corpus("tax_id_ein", &entity::TAX_ID_EIN);
 }
 
 #[test]
 fn nhs_number_corpus() {
-    assert_corpus_full("nhs_number", &entity::NHS_NUMBER);
+    assert_corpus("nhs_number", &entity::NHS_NUMBER);
 }
 
 #[test]
 fn nino_uk_corpus() {
-    assert_corpus_full("nino_uk", &entity::NINO_UK);
+    assert_corpus("nino_uk", &entity::NINO_UK);
 }
 
 #[test]
 fn passport_uk_corpus() {
-    assert_corpus_full("passport_uk", &entity::PASSPORT_UK);
+    assert_corpus("passport_uk", &entity::PASSPORT_UK);
 }
 
 #[test]
 fn passport_us_corpus() {
-    assert_corpus_full("passport_us", &entity::PASSPORT_US);
+    assert_corpus("passport_us", &entity::PASSPORT_US);
 }
 
 #[test]
 fn sin_ca_corpus() {
-    assert_corpus_full("sin_ca", &entity::SIN_CA);
+    assert_corpus("sin_ca", &entity::SIN_CA);
 }
 
 #[test]
 fn vat_number_corpus() {
-    assert_corpus_full("vat_number", &entity::VAT_NUMBER);
+    assert_corpus("vat_number", &entity::VAT_NUMBER);
 }
 
 #[test]
 fn api_key_corpus() {
-    assert_corpus_full("api_key", &entity::API_KEY);
+    assert_corpus("api_key", &entity::API_KEY);
 }
 
 #[test]
 fn jwt_token_corpus() {
-    assert_corpus_full("jwt_token", &entity::JWT_TOKEN);
+    assert_corpus("jwt_token", &entity::JWT_TOKEN);
 }
 
 #[test]
 fn private_key_corpus() {
-    assert_corpus_full("private_key", &entity::PRIVATE_KEY);
+    assert_corpus("private_key", &entity::PRIVATE_KEY);
 }
 
 #[test]

@@ -29,18 +29,6 @@ fn make_result_scored(et: &str, start: usize, end: usize, score: Score) -> Recog
     }
 }
 
-fn align_to_char_boundary(text: &str, idx: usize) -> usize {
-    let len = text.len();
-    if len == 0 {
-        return 0;
-    }
-    let mut i = idx.min(len);
-    while !text.is_char_boundary(i) {
-        i += 1;
-    }
-    i
-}
-
 #[test]
 fn us2_1_default_replace_rewrite() {
     let analyzer = Analyzer::with_defaults();
@@ -122,26 +110,21 @@ fn us2_4_hash_deterministic_per_input() {
 
 #[test]
 fn new_offsets_are_codepoint_aligned() {
+    // (label, text, start, end) — start/end MUST be at char boundaries (matches the
+    // contract every recognizer is held to). Spans cover ascii, multibyte, and the
+    // post-multibyte tail that prior bugs surfaced.
     let cases: &[(&str, &str, usize, usize)] = &[
-        ("ascii_mid_span", "hello world goodbye", 6, 5),
+        ("ascii_mid_span", "hello world goodbye", 6, 11),
         ("ascii_full_span", "hello", 0, 5),
-        ("ascii_span_overflows", "hello", 2, 80),
-        ("ascii_max_len", "abcdefghijklmnopqrstuvwxyz0123456789", 10, 20),
-        ("empty_text", "", 0, 1),
-        ("multibyte_accent", "café résumé", 0, 6),
-        ("multibyte_emoji", "🎉 party 🎉", 0, 9),
+        ("ascii_span_to_end", "hello", 2, 5),
+        ("multibyte_accent", "café résumé", 0, 5),
+        ("multibyte_emoji", "🎉 party 🎉", 0, 4),
         ("multibyte_cjk", "日本語テスト", 0, 9),
-        ("offstart_inside_char", "café résumé", 2, 5),
-        ("offend_inside_char", "🎉 party", 1, 4),
+        ("post_multibyte_tail", "🎉 party", 4, 9),
     ];
 
-    for (label, text, raw_start, raw_len) in cases {
-        let bounded_start = align_to_char_boundary(text, *raw_start);
-        let bounded_end = align_to_char_boundary(text, bounded_start + *raw_len);
-        if bounded_end <= bounded_start {
-            continue;
-        }
-        let r = make_result("X", bounded_start, bounded_end);
+    for (label, text, start, end) in cases.iter().copied() {
+        let r = make_result("X", start, end);
         let out = anonymize(text, vec![r], &OperatorConfig::default());
         for op in &out.operations {
             assert!(

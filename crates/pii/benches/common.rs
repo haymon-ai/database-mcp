@@ -1,5 +1,5 @@
 //! Shared helpers for the PII benches: payload synthesis on top of the
-//! shared `test_support::Corpus` loader.
+//! `dbmcp_pii::corpus::Corpus` loader.
 
 #![allow(dead_code)]
 
@@ -17,12 +17,11 @@ const FILLER: &str = "the quick brown fox jumps over the lazy dog while logs shi
 pub fn synth_payload(size_bytes: usize, positives: &[String]) -> String {
     assert!(!positives.is_empty(), "positives must not be empty");
     let mut out = String::with_capacity(size_bytes + 256);
-    let mut i = 0usize;
+    let mut cycle = positives.iter().cycle();
     while out.len() < size_bytes {
         out.push_str(FILLER);
-        out.push_str(&positives[i % positives.len()]);
+        out.push_str(cycle.next().expect("positives non-empty"));
         out.push(' ');
-        i += 1;
     }
     out
 }
@@ -30,11 +29,13 @@ pub fn synth_payload(size_bytes: usize, positives: &[String]) -> String {
 /// Build a mixed payload using positives from several corpora.
 #[must_use]
 pub fn mixed_payload(size_bytes: usize) -> String {
-    let mut all: Vec<String> = Vec::new();
-    for stem in ["email", "credit_card", "iban", "ip", "url"] {
-        all.extend(Corpus::load(stem).positives);
-    }
-    synth_payload(size_bytes, &all)
+    synth_payload(size_bytes, &pii_pool(&["email", "credit_card", "iban", "ip", "url"]))
+}
+
+/// Concatenate positives from each corpus stem into a single pool.
+#[must_use]
+pub fn pii_pool(stems: &[&str]) -> Vec<String> {
+    stems.iter().flat_map(|s| Corpus::load(s).positives).collect()
 }
 
 /// Pre-compute analyzer results for `text` so anonymizer benches don't pay

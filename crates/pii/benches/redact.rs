@@ -4,23 +4,17 @@ use std::hint::black_box;
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use dbmcp_pii::Redactor;
-use dbmcp_pii::corpus::Corpus;
 use serde_json::{Map, Value, json};
 
 mod common;
 
-fn pii_pool() -> Vec<String> {
-    let mut pool = Vec::new();
-    for stem in ["email", "ip", "credit_card", "iban"] {
-        pool.extend(Corpus::load(stem).positives);
-    }
-    pool
-}
+use common::pii_pool;
 
-fn flat_rows() -> Vec<Value> {
+const POOL_STEMS: &[&str] = &["email", "ip", "credit_card", "iban"];
+
+fn flat_rows(pool: &[String]) -> Vec<Value> {
     const ROWS: usize = 1000;
     const COLS: usize = 10;
-    let pool = pii_pool();
     let mut out = Vec::with_capacity(ROWS);
     for r in 0..ROWS {
         let mut map = Map::new();
@@ -38,9 +32,8 @@ fn flat_rows() -> Vec<Value> {
     out
 }
 
-fn nested_jsonb_rows() -> Vec<Value> {
+fn nested_jsonb_rows(pool: &[String]) -> Vec<Value> {
     const ROWS: usize = 100;
-    let pool = pii_pool();
     let mut out = Vec::with_capacity(ROWS);
     for r in 0..ROWS {
         let leaf_pii = pool[r % pool.len()].clone();
@@ -67,19 +60,17 @@ fn nested_jsonb_rows() -> Vec<Value> {
     out
 }
 
-fn large_blob_rows() -> Vec<Value> {
+fn large_blob_rows(pool: &[String]) -> Vec<Value> {
     const ROWS: usize = 10;
     const TARGET: usize = 64 * 1024;
-    let pool = pii_pool();
     let mut out = Vec::with_capacity(ROWS);
     for r in 0..ROWS {
         let mut blob = String::with_capacity(TARGET + 256);
-        let mut i = 0usize;
+        let mut cycle = pool.iter().cycle().skip(r);
         while blob.len() < TARGET {
             blob.push_str("lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor ");
-            blob.push_str(&pool[(r + i) % pool.len()]);
+            blob.push_str(cycle.next().expect("non-empty pool"));
             blob.push(' ');
-            i += 1;
         }
         out.push(json!({"row": r, "blob": blob}));
     }
@@ -88,22 +79,23 @@ fn large_blob_rows() -> Vec<Value> {
 
 fn bench_redact_shapes(c: &mut Criterion) {
     let redactor = Redactor::with_defaults();
+    let pool = pii_pool(POOL_STEMS);
 
     let shapes: [(&str, Vec<Value>); 3] = [
-        ("flat_rows", flat_rows()),
-        ("nested_jsonb", nested_jsonb_rows()),
-        ("large_blob", large_blob_rows()),
+        ("flat_rows", flat_rows(&pool)),
+        ("nested_jsonb", nested_jsonb_rows(&pool)),
+        ("large_blob", large_blob_rows(&pool)),
     ];
 
     let mut group = c.benchmark_group("redact/shapes");
     for (label, rows) in &shapes {
         group.throughput(Throughput::Elements(rows.len() as u64));
         group.bench_with_input(BenchmarkId::from_parameter(label), rows, |b, rs| {
-            b.iter_batched(
+            b.iter_batched_ref(
                 || rs.clone(),
-                |mut r| {
+                |r| {
                     redactor
-                        .apply(black_box(&mut r))
+                        .apply(black_box(r))
                         .expect("redactor must not panic on bench input")
                 },
                 BatchSize::SmallInput,

@@ -38,27 +38,6 @@ impl Analyzer {
         }
     }
 
-    /// Construct an analyzer from a caller-supplied rule set.
-    ///
-    /// Bypasses the category builder; intended for benches and tests that
-    /// need exact registry control. Gated behind the `test-support` feature.
-    #[cfg(feature = "test-support")]
-    #[must_use]
-    pub fn from_rules(rules: Vec<Rule>) -> Self {
-        Self { recognizers: rules }
-    }
-
-    /// Consume the analyzer and return its rule registry.
-    ///
-    /// Pairs with [`Analyzer::from_rules`] for callers that want to walk
-    /// the default registry one rule at a time. Gated behind the
-    /// `test-support` feature.
-    #[cfg(feature = "test-support")]
-    #[must_use]
-    pub fn into_rules(self) -> Vec<Rule> {
-        self.recognizers
-    }
-
     #[cfg(test)]
     pub(crate) fn register(&mut self, rule: Rule) -> &mut Self {
         self.recognizers.push(rule);

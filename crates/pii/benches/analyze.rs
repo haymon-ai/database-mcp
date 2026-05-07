@@ -4,7 +4,7 @@ use std::hint::black_box;
 use std::time::Duration;
 
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use dbmcp_pii::{AnalyzeOptions, Analyzer, Category};
+use dbmcp_pii::{AnalyzeOptions, Analyzer, Category, overlap};
 
 mod common;
 
@@ -19,7 +19,7 @@ fn bench_all_recognizers(c: &mut Criterion) {
         let payload = mixed_payload(size);
         group.throughput(Throughput::Bytes(payload.len() as u64));
         group.bench_with_input(BenchmarkId::from_parameter(size), &payload, |b, text| {
-            b.iter(|| analyzer.analyze(black_box(text), black_box(&opts)));
+            b.iter_with_large_drop(|| analyzer.analyze(black_box(text), black_box(&opts)));
         });
     }
     group.finish();
@@ -28,17 +28,21 @@ fn bench_all_recognizers(c: &mut Criterion) {
 fn bench_by_rule(c: &mut Criterion) {
     let opts = AnalyzeOptions::default();
     let payload = mixed_payload(64 * 1024);
+    let analyzer = Analyzer::with_defaults();
 
     let mut group = c.benchmark_group("analyze/by_rule");
     group.throughput(Throughput::Bytes(payload.len() as u64));
     group.sample_size(50);
     group.measurement_time(Duration::from_secs(3));
 
-    for rule in Analyzer::with_defaults().into_rules() {
-        let label = rule.name().to_owned();
-        let analyzer = Analyzer::from_rules(vec![rule]);
+    for rule in analyzer.recognizers() {
+        let label = rule.name().trim_end_matches("Recognizer");
         group.bench_with_input(BenchmarkId::from_parameter(label), &payload, |b, text| {
-            b.iter(|| analyzer.analyze(black_box(text), black_box(&opts)));
+            b.iter_with_large_drop(|| {
+                let mut results = rule.analyze(black_box(text));
+                results.retain(|r| r.score >= opts.min_score);
+                overlap::resolve(results)
+            });
         });
     }
     group.finish();
@@ -50,11 +54,11 @@ fn bench_analyzer_build(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(2));
 
     group.bench_function("with_defaults", |b| {
-        b.iter(Analyzer::with_defaults);
+        b.iter_with_large_drop(Analyzer::with_defaults);
     });
 
     group.bench_function("builder_filtered_financial", |b| {
-        b.iter(|| {
+        b.iter_with_large_drop(|| {
             Analyzer::builder()
                 .categories([Category::Financial])
                 .build()

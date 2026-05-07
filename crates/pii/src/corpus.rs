@@ -1,12 +1,10 @@
 //! Test/bench-only fixture loader. Gated behind the `test-support` feature.
 
-#![cfg(feature = "test-support")]
-
 use std::fs;
 use std::path::PathBuf;
 
 /// Two-bucket recognizer fixture loaded from `corpus/{name}.toml`.
-#[derive(Debug, Default, Clone, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 pub struct Corpus {
     /// Examples that MUST surface the recognizer's entity type.
     #[serde(default)]
@@ -30,7 +28,8 @@ impl Corpus {
     pub fn load(stem: &str) -> Self {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("corpus")
-            .join(format!("{stem}.toml"));
+            .join(stem)
+            .with_extension("toml");
         let raw = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read corpus {}: {e}", path.display()));
         toml::from_str(&raw).unwrap_or_else(|e| panic!("parse corpus {}: {e}", path.display()))
     }
