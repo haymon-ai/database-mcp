@@ -18,7 +18,7 @@ pub fn phone_number() -> Rule {
     let s = Score::from_static(0.4);
     let patterns = vec![
         Regex::new("E.164", r"\+\d{8,15}\b", s).expect("E.164 compiles"),
-        Regex::new("US", r"[+(]?\b(?:\+?1[\s-]?)?\d{3}\)?[\s-]?\d{3}[\s-]?\d{4}\b", s).expect("US compiles"),
+        Regex::new("US", r"[+(]?\b(?:1[\s-]?)?\d{3}\)?[\s-]?\d{3}[\s-]?\d{4}\b", s).expect("US compiles"),
         Regex::new("UK", r"\+?\b(?:44[\s-]?)?0?[1-9](?:[\s-]?\d){8,9}\b", s).expect("UK compiles"),
         Regex::new("DE", r"\+?\b(?:49[\s-]?)?0?[1-9](?:[\s-]?\d){7,11}\b", s).expect("DE compiles"),
     ];
