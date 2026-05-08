@@ -48,8 +48,7 @@ mod tests {
 
     #[test]
     fn unknown_prefix_rejected() {
-        // Unknown ISO2 prefix → validator Invalid, match dropped. Stops
-        // all-uppercase English words being tagged as VAT identifiers.
+        // Stops uppercase-word false positives like CERTIFICATE, DEMOGRAPHIC.
         assert!(matches("VAT XX123456789").is_empty());
     }
 
