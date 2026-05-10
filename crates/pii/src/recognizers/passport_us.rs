@@ -28,31 +28,28 @@ pub fn passport_us() -> Recognizer {
 mod tests {
     use super::passport_us;
 
-    fn matches(text: &str) -> Vec<String> {
-        let r = passport_us();
-        r.analyze(text)
+    fn matches(text: &str) -> Vec<(usize, usize)> {
+        passport_us()
+            .analyze(text)
             .into_iter()
-            .map(|res| text[res.start..res.end].to_string())
+            .map(|r| (r.start, r.end))
             .collect()
     }
 
     #[test]
-    fn positive_p_prefix() {
-        assert_eq!(matches("passport P01234567"), vec!["P01234567"]);
-    }
-
-    #[test]
-    fn positive_e_prefix() {
-        assert_eq!(matches("travel document E1234567"), vec!["E1234567"]);
-    }
-
-    #[test]
-    fn negative_no_keyword() {
-        assert!(matches("ticket P01234567").is_empty());
-    }
-
-    #[test]
-    fn negative_wrong_letter() {
-        assert!(matches("passport Q01234567").is_empty());
+    fn recognizes_passport_us() {
+        let cases: &[(&str, &[(usize, usize)])] = &[
+            ("passport P01234567", &[(9, 18)]),
+            ("travel document E1234567", &[(16, 24)]),
+            ("Passport p1234567", &[(9, 17)]),
+            ("ticket P01234567", &[]),
+            ("passport Q01234567", &[]),
+            ("passport P12", &[]),
+            ("passport P123456789", &[]),
+            ("", &[]),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(matches(input), expected.to_vec(), "input {input:?}: span mismatch");
+        }
     }
 }
