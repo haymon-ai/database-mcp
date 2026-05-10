@@ -24,3 +24,34 @@ pub fn us_ssn() -> Recognizer {
         .with_validator(Validator::UsSsn)
         .with_category(Category::Government)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::us_ssn;
+
+    fn matches(text: &str) -> Vec<(usize, usize)> {
+        us_ssn().analyze(text).into_iter().map(|r| (r.start, r.end)).collect()
+    }
+
+    #[test]
+    fn recognizes_us_ssn() {
+        let cases: &[(&str, &[(usize, usize)])] = &[
+            ("078-051121 07805-1121", &[(0, 10), (11, 21)]),
+            ("078051121", &[(0, 9)]),
+            ("078-05-1123", &[(0, 11)]),
+            ("078 05 1123", &[(0, 11)]),
+            ("abc 078 05 1123 abc", &[(4, 15)]),
+            ("0780511201", &[]),
+            ("000000000", &[]),
+            ("666000000", &[]),
+            ("912-12-1234", &[]),
+            ("078-05-0000", &[]),
+            ("078 00 1123", &[]),
+            ("693-09.4444", &[]),
+            ("", &[]),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(matches(input), expected.to_vec(), "input {input:?}: span mismatch");
+        }
+    }
+}
