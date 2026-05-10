@@ -36,6 +36,7 @@ axum = "0.8"
 base64 = "0.22"
 bigdecimal = "0.4"
 clap = { version = "4", features = ["derive", "env"] }
+fancy-regex = "0.18"
 hmac = "0.12"
 indexmap = { version = "2", features = ["serde"] }
 mimalloc = "0.1"

@@ -142,10 +142,18 @@ impl Recognizer {
         self.regexes
             .iter()
             .flat_map(|regex| {
-                regex
-                    .compiled
-                    .find_iter(text)
-                    .filter_map(move |m| self.build_result(regex, m.start(), m.end(), text))
+                regex.compiled.find_iter(text).filter_map(move |m| match m {
+                    Ok(m) => self.build_result(regex, m.start(), m.end(), text),
+                    Err(e) => {
+                        tracing::warn!(
+                            pattern = %regex.name(),
+                            text_len = text.len(),
+                            error = %e,
+                            "fancy-regex match-time error; skipping pattern",
+                        );
+                        None
+                    }
+                })
             })
             .collect()
     }
@@ -178,5 +186,22 @@ impl Recognizer {
                 final_score,
             },
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Recognizer;
+    use crate::Entity;
+    use crate::pattern::Pattern;
+    use crate::score::Score;
+
+    #[test]
+    fn catastrophic_backtrack_returns_empty_results() {
+        let pattern =
+            Pattern::new("catastrophic", r"(a+)+$", Score::new(0.5).expect("valid score")).expect("pattern compiles");
+        let recognizer = Recognizer::new(Entity::CreditCard, vec![pattern]).expect("non-empty pattern list");
+        let haystack = "a".repeat(64) + "b";
+        assert_eq!(recognizer.analyze(&haystack), Vec::new());
     }
 }

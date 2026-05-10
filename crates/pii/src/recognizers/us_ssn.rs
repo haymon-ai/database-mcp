@@ -1,8 +1,7 @@
 //! `US_SSN` recognizer.
 //!
 //! Plain regex matches `XXX-XX-XXXX` shape; reserved area/group/serial values
-//! are rejected by [`UsSsnValidator`] (replaces Presidio's negative-lookahead
-//! constructs).
+//! are rejected by [`UsSsnValidator`].
 
 use super::Recognizer;
 use crate::pattern::Pattern;

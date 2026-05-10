@@ -13,12 +13,16 @@ use crate::{Category, Entity};
 /// Panics only if the bundled regex source or score literal is rejected at construction.
 #[must_use]
 pub fn itin() -> Recognizer {
-    let pattern = Pattern::new("US ITIN", r"\b9\d{2}-?[789]\d-?\d{4}\b", Score::from_static(0.5))
-        .expect("static ITIN pattern compiles");
+    let pattern = Pattern::new(
+        "US ITIN",
+        r"\b9\d{2}-?(7\d|8[0-8]|9[0-2]|9[4-9])-?\d{4}\b",
+        Score::from_static(0.5),
+    )
+    .expect("static ITIN pattern compiles");
     Recognizer::new(Entity::Itin, vec![pattern])
         .expect("non-empty pattern list")
         .with_name("ItinRecognizer")
-        .with_validator(Validator::ItinRange)
+        .with_validator(Validator::Noop)
         .with_category(Category::Government)
 }
 

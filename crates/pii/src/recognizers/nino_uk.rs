@@ -15,14 +15,14 @@ use crate::{Category, Entity};
 pub fn nino_uk() -> Recognizer {
     let pattern = Pattern::new(
         "UK NINO",
-        r"(?i)\b[A-Z]{2}[ -]?\d{2}[ -]?\d{2}[ -]?\d{2}[ -]?[A-D]?\b",
+        r"(?i)\b(?!BG|GB|KN|NK|NT|TN|ZZ)[ABCEGHJ-PRSTWXYZ][ABCEGHJ-NPR-TWXYZ][ -]?\d{2}[ -]?\d{2}[ -]?\d{2}[ -]?[A-D]?\b",
         Score::from_static(0.4),
     )
     .expect("static NINO pattern compiles");
     Recognizer::new(Entity::NinoUk, vec![pattern])
         .expect("non-empty pattern list")
         .with_name("NinoUkRecognizer")
-        .with_validator(Validator::NinoBlocklist)
+        .with_validator(Validator::Noop)
         .with_category(Category::Government)
 }
 

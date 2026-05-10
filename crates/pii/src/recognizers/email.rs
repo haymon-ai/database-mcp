@@ -1,6 +1,4 @@
 //! `EMAIL_ADDRESS` recognizer.
-//!
-//! Pattern adapted from Presidio's `EmailRecognizer.PATTERNS["Email (Medium)"]`.
 
 use super::Recognizer;
 use crate::pattern::Pattern;
