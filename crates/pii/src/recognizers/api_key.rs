@@ -62,100 +62,61 @@ pub fn api_key_aws_secret() -> Recognizer {
 mod tests {
     use super::{api_key_aws_secret, api_key_strong};
 
-    fn matches_strong(text: &str) -> Vec<String> {
+    fn matches_strong(text: &str) -> Vec<(usize, usize)> {
         api_key_strong()
             .analyze(text)
             .into_iter()
-            .map(|res| text[res.start..res.end].to_string())
+            .map(|r| (r.start, r.end))
             .collect()
     }
 
-    fn matches_secret(text: &str) -> Vec<String> {
+    fn matches_secret(text: &str) -> Vec<(usize, usize)> {
         api_key_aws_secret()
             .analyze(text)
             .into_iter()
-            .map(|res| text[res.start..res.end].to_string())
+            .map(|r| (r.start, r.end))
             .collect()
     }
 
     #[test]
-    fn positive_aws_access_key() {
-        assert_eq!(
-            matches_strong("aws_access_key_id=AKIAIOSFODNN7EXAMPLE"),
-            vec!["AKIAIOSFODNN7EXAMPLE"]
-        );
+    fn recognizes_api_key_strong() {
+        let cases: &[(&str, &[(usize, usize)])] = &[
+            ("aws_access_key_id=AKIAIOSFODNN7EXAMPLE", &[(18, 38)]),
+            ("GH_TOKEN=ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789", &[(9, 49)]),
+            ("STRIPE=sk_live_aBcDeFgHiJkLmNoPqRsTuVwX", &[(7, 39)]),
+            ("GOOGLE_API_KEY=AIzaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", &[(15, 54)]),
+            ("OPENAI=sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", &[(7, 58)]),
+            ("AKIA0OSFODNN7EXAMPLE", &[]),
+            ("AKIAIOSFODNN8EXAMPLE", &[]),
+            ("GH_TOKEN=ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", &[]),
+            ("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC", &[]),
+            ("", &[]),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(
+                matches_strong(input),
+                expected.to_vec(),
+                "input {input:?}: span mismatch"
+            );
+        }
     }
 
     #[test]
-    fn positive_github_pat() {
-        assert_eq!(
-            matches_strong("GH_TOKEN=ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789"),
-            vec!["ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789"]
-        );
-    }
-
-    #[test]
-    fn positive_stripe_live() {
-        assert_eq!(
-            matches_strong("STRIPE=sk_live_aBcDeFgHiJkLmNoPqRsTuVwX"),
-            vec!["sk_live_aBcDeFgHiJkLmNoPqRsTuVwX"]
-        );
-    }
-
-    #[test]
-    fn positive_google_api() {
-        // Google API key: AIza prefix + 35 chars from [A-Za-z0-9_-].
-        let body: String = std::iter::repeat_n('A', 35).collect();
-        let key = format!("AIza{body}");
-        assert!(key.len() == 39, "test fixture must be 39 chars, got {}", key.len());
-        let key = key.as_str();
-        assert_eq!(matches_strong(&format!("GOOGLE_API_KEY={key}")), vec![key.to_string()]);
-    }
-
-    #[test]
-    fn positive_openai() {
-        // OpenAI: sk- prefix + 48 chars from [A-Za-z0-9].
-        let body: String = std::iter::repeat_n('a', 48).collect();
-        let key = format!("sk-{body}");
-        assert!(key.len() == 51, "test fixture must be 51 chars");
-        assert_eq!(matches_strong(&format!("OPENAI={key}")), vec![key.clone()]);
-    }
-
-    #[test]
-    fn positive_aws_secret_with_keyword() {
-        // AWS secret: exactly 40 chars [A-Za-z0-9+/].
-        let secret: String = std::iter::repeat_n('A', 40).collect();
-        let text = format!("aws_secret_access_key={secret}");
-        assert_eq!(matches_secret(&text), vec![secret.clone()]);
-    }
-
-    #[test]
-    fn negative_aws_secret_no_keyword() {
-        // 40-char base64 with no `secret` keyword nearby → keyword-context drops it.
-        let body: String = std::iter::repeat_n('B', 40).collect();
-        assert!(matches_secret(&body).is_empty());
-    }
-
-    #[test]
-    fn negative_random_high_entropy_string() {
-        // No generic high-entropy fallback. A random 40-char base64 string with
-        // no provider prefix and no keyword produces zero matches across both legs.
-        let body: String = std::iter::repeat_n('C', 40).collect();
-        assert!(matches_strong(&body).is_empty());
-        assert!(matches_secret(&body).is_empty());
-    }
-
-    #[test]
-    fn negative_aws_access_with_non_base32_digit() {
-        // AWS access keys are base32 (A-Z, 2-7). `0`, `1`, `8`, `9` MUST NOT match.
-        assert!(matches_strong("AKIA0OSFODNN7EXAMPLE").is_empty());
-        assert!(matches_strong("AKIAIOSFODNN8EXAMPLE").is_empty());
-    }
-
-    #[test]
-    fn negative_github_pat_oversized() {
-        // Legacy GitHub tokens are exactly 36 alnum chars; 37+ MUST NOT match.
-        let body: String = std::iter::repeat_n('a', 37).collect();
-        assert!(matches_strong(&format!("GH_TOKEN=ghp_{body}")).is_empty());
+    fn recognizes_api_key_aws_secret() {
+        let cases: &[(&str, &[(usize, usize)])] = &[
+            (
+                "aws_secret_access_key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                &[(22, 62)],
+            ),
+            ("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", &[]),
+            ("", &[]),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(
+                matches_secret(input),
+                expected.to_vec(),
+                "input {input:?}: span mismatch"
+            );
+        }
     }
 }
