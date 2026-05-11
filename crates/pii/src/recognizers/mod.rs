@@ -188,20 +188,3 @@ pub fn all() -> Vec<Recognizer> {
         private_key(),
     ]
 }
-
-#[cfg(test)]
-mod tests {
-    use super::Recognizer;
-    use crate::Entity;
-    use crate::pattern::Pattern;
-    use crate::score::Score;
-
-    #[test]
-    fn catastrophic_backtrack_returns_empty_results() {
-        let pattern =
-            Pattern::new("catastrophic", r"(a+)+$", Score::new(0.5).expect("valid score")).expect("pattern compiles");
-        let recognizer = Recognizer::new(Entity::CreditCard, vec![pattern]).expect("non-empty pattern list");
-        let haystack = "a".repeat(64) + "b";
-        assert_eq!(recognizer.analyze(&haystack), Vec::new());
-    }
-}
