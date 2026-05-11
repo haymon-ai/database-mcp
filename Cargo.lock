@@ -640,7 +640,6 @@ dependencies = [
  "base64",
  "criterion",
  "dbmcp-config",
- "dbmcp-pii",
  "fancy-regex",
  "regex",
  "rmcp",

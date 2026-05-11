@@ -22,8 +22,6 @@
 pub mod analyzer;
 pub mod anonymizer;
 pub mod category;
-#[cfg(feature = "test-support")]
-pub mod corpus;
 pub mod entity;
 pub mod error;
 pub mod operators;

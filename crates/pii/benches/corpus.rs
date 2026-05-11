@@ -1,4 +1,4 @@
-//! Test/bench-only fixture loader. Gated behind the `test-support` feature.
+//! Bench-only fixture loader for `crates/pii/corpus/*.toml`.
 
 use std::fs;
 use std::path::PathBuf;
