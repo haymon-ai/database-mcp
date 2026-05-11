@@ -30,37 +30,31 @@ pub fn nino_uk() -> Recognizer {
 mod tests {
     use super::nino_uk;
 
-    fn matches(text: &str) -> Vec<String> {
-        let r = nino_uk();
-        r.analyze(text)
-            .into_iter()
-            .map(|res| text[res.start..res.end].to_string())
-            .collect()
+    fn matches(text: &str) -> Vec<(usize, usize)> {
+        nino_uk().analyze(text).into_iter().map(|r| (r.start, r.end)).collect()
     }
 
     #[test]
-    fn positive_valid_with_suffix() {
-        assert_eq!(matches("NI number AB123456C"), vec!["AB123456C"]);
-    }
-
-    #[test]
-    fn positive_no_suffix() {
-        assert_eq!(matches("NI AB123456"), vec!["AB123456"]);
-    }
-
-    #[test]
-    fn negative_blocked_prefix() {
-        assert!(matches("NI BG123456C").is_empty());
-        assert!(matches("NI ZZ123456C").is_empty());
-    }
-
-    #[test]
-    fn negative_o_in_second_position() {
-        assert!(matches("NI AO123456C").is_empty());
-    }
-
-    #[test]
-    fn negative_invalid_suffix_letter() {
-        assert!(matches("NI AB123456E").is_empty());
+    fn recognizes_nino_uk() {
+        let cases: &[(&str, &[(usize, usize)])] = &[
+            ("AA 12 34 56 B", &[(0, 13)]),
+            ("hh 01 02 03 d", &[(0, 13)]),
+            ("tw987654a", &[(0, 9)]),
+            ("nino: PR 123612C", &[(6, 16)]),
+            ("Here is my National Insurance Number YZ 61 48 68 B", &[(37, 50)]),
+            ("NI number AB123456C", &[(10, 19)]),
+            ("NI AB123456", &[(3, 11)]),
+            ("FQ 00 00 00 C", &[]),
+            ("BG123612A", &[]),
+            ("nino: nt 99 88 77 a", &[]),
+            ("NI ZZ123456C", &[]),
+            ("This isn't a valid national insurance number UV 98 76 54 B", &[]),
+            ("NI AO123456C", &[]),
+            ("NI AB123456E", &[]),
+            ("", &[]),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(matches(input), expected.to_vec(), "input {input:?}: span mismatch");
+        }
     }
 }
