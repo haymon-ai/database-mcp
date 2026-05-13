@@ -9,7 +9,7 @@ use dbmcp_postgres::PostgresHandler;
 use dbmcp_server::Server;
 
 /// Creates a `PostgreSQL`-backed [`Server`] from `DB_HOST` and `DB_PORT` environment variables.
-fn server(read_only: bool) -> Server {
+fn server(read_only: bool, name: Option<&str>) -> Server {
     let config = Config {
         database: DatabaseConfig {
             backend: DatabaseBackend::Postgres,
@@ -19,7 +19,7 @@ fn server(read_only: bool) -> Server {
                 .parse()
                 .expect("DB_PORT must be a valid port number"),
             user: "postgres".into(),
-            name: Some("app".into()),
+            name: name.map(str::to_owned),
             read_only,
             ..DatabaseConfig::default()
         },
@@ -31,7 +31,7 @@ fn server(read_only: bool) -> Server {
 
 #[tokio::test]
 async fn test_server_info() {
-    common::run_with_client(server(false), |peer| async move {
+    common::run_with_client(server(false, None), |peer| async move {
         let info = peer.peer_info().expect("missing peer_info");
         insta::assert_json_snapshot!("server_info", info, {
             ".serverInfo.version" => "[version]"
@@ -42,7 +42,7 @@ async fn test_server_info() {
 
 #[tokio::test]
 async fn test_list_tools() {
-    common::run_with_client(server(false), |peer| async move {
+    common::run_with_client(server(false, None), |peer| async move {
         let tools = peer.list_all_tools().await.expect("list_all_tools failed");
         insta::assert_json_snapshot!("list_tools", tools);
     })
@@ -51,9 +51,18 @@ async fn test_list_tools() {
 
 #[tokio::test]
 async fn test_list_tools_read_only() {
-    common::run_with_client(server(true), |peer| async move {
+    common::run_with_client(server(true, None), |peer| async move {
         let tools = peer.list_all_tools().await.expect("list_all_tools failed");
         insta::assert_json_snapshot!("list_tools_read_only", tools);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn test_list_tools_single_db() {
+    common::run_with_client(server(false, Some("app")), |peer| async move {
+        let tools = peer.list_all_tools().await.expect("list_all_tools failed");
+        insta::assert_json_snapshot!("list_tools_single_db", tools);
     })
     .await;
 }
