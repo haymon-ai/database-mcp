@@ -45,6 +45,7 @@ Per-database tools default to the active database; pass `database` to target ano
 ## Constraints
 
 - The `writeQuery`, `createDatabase`, `dropDatabase`, and `dropTable` tools are hidden when read-only mode is active.
+- The `listDatabases`, `createDatabase`, and `dropDatabase` tools are hidden when single-database mode is active (`DB_NAME` set). Per-database tool calls target that database implicitly.
 - Multi-statement queries are not supported. Send one statement per request.";
 
 /// MySQL/MariaDB database handler.
@@ -80,7 +81,7 @@ impl MysqlHandler {
             config: config.database.clone(),
             connection: MysqlConnection::new(&config.database),
             redactor: Redactor::from_config(&config.pii),
-            tool_router: build_tool_router(config.database.read_only),
+            tool_router: build_tool_router(config.database.read_only, config.database.is_single_db()),
         }
     }
 }
@@ -92,10 +93,14 @@ impl From<MysqlHandler> for Server {
     }
 }
 
-/// Builds the tool router, including write tools only when not in read-only mode.
-fn build_tool_router(read_only: bool) -> ToolRouter<MysqlHandler> {
+/// Builds the tool router, gating tools by `read_only` and `single_db`.
+///
+/// `read_only` hides write tools (`writeQuery`, `createDatabase`,
+/// `dropDatabase`, `dropTable`). `single_db` additionally hides the
+/// three database-management tools (`listDatabases`, `createDatabase`,
+/// `dropDatabase`) — see the single-database-mode spec.
+fn build_tool_router(read_only: bool, single_db: bool) -> ToolRouter<MysqlHandler> {
     let mut router = ToolRouter::new()
-        .with_async_tool::<ListDatabasesTool>()
         .with_async_tool::<ListTablesTool>()
         .with_async_tool::<ListViewsTool>()
         .with_async_tool::<ListTriggersTool>()
@@ -104,12 +109,20 @@ fn build_tool_router(read_only: bool) -> ToolRouter<MysqlHandler> {
         .with_async_tool::<ReadQueryTool>()
         .with_async_tool::<ExplainQueryTool>();
 
+    if !single_db {
+        router = router.with_async_tool::<ListDatabasesTool>();
+    }
+
     if !read_only {
         router = router
-            .with_async_tool::<CreateDatabaseTool>()
-            .with_async_tool::<DropDatabaseTool>()
             .with_async_tool::<DropTableTool>()
             .with_async_tool::<WriteQueryTool>();
+
+        if !single_db {
+            router = router
+                .with_async_tool::<CreateDatabaseTool>()
+                .with_async_tool::<DropDatabaseTool>();
+        }
     }
     router
 }
@@ -160,7 +173,7 @@ mod tests {
             port: 3307,
             user: "admin".into(),
             password: Some("s3cret".into()),
-            name: Some("mydb".into()),
+            name: None,
             ..DatabaseConfig::default()
         }
     }
@@ -169,6 +182,18 @@ mod tests {
         MysqlHandler::new(&Config {
             database: DatabaseConfig {
                 read_only,
+                ..base_config()
+            },
+            http: None,
+            pii: dbmcp_config::PiiConfig::default(),
+        })
+    }
+
+    fn handler_single_db(read_only: bool) -> MysqlHandler {
+        MysqlHandler::new(&Config {
+            database: DatabaseConfig {
+                read_only,
+                name: Some("mydb".into()),
                 ..base_config()
             },
             http: None,
@@ -235,5 +260,60 @@ mod tests {
             !ro.has_route("getTableSchema"),
             "read-only router must not expose getTableSchema"
         );
+    }
+
+    #[tokio::test]
+    async fn router_hides_db_management_tools_in_single_db_mode() {
+        let router = handler_single_db(false).tool_router;
+        for hidden in ["listDatabases", "createDatabase", "dropDatabase"] {
+            assert!(
+                !router.has_route(hidden),
+                "{hidden} must be absent in single-database mode"
+            );
+        }
+        for visible in [
+            "listTables",
+            "listViews",
+            "listTriggers",
+            "listFunctions",
+            "listProcedures",
+            "readQuery",
+            "writeQuery",
+            "explainQuery",
+            "dropTable",
+        ] {
+            assert!(
+                router.has_route(visible),
+                "{visible} must remain in single-database mode (read-write)"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn router_hides_db_management_tools_in_single_db_read_only_mode() {
+        let router = handler_single_db(true).tool_router;
+        for hidden in [
+            "listDatabases",
+            "createDatabase",
+            "dropDatabase",
+            "writeQuery",
+            "dropTable",
+        ] {
+            assert!(
+                !router.has_route(hidden),
+                "{hidden} must be absent in single-database + read-only mode"
+            );
+        }
+        for visible in [
+            "listTables",
+            "listViews",
+            "listTriggers",
+            "listFunctions",
+            "listProcedures",
+            "readQuery",
+            "explainQuery",
+        ] {
+            assert!(router.has_route(visible), "{visible} must remain available");
+        }
     }
 }

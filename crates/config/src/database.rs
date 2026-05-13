@@ -162,6 +162,19 @@ impl DatabaseConfig {
     /// Maximum accepted value for `page_size`.
     pub const MAX_PAGE_SIZE: u16 = 500;
 
+    /// Returns true when the server runs in single-database mode for this backend.
+    ///
+    /// `SQLite` is always single-database (the connection targets one file).
+    /// Other backends are single-database iff `name` is `Some` with a
+    /// non-empty value after whitespace trimming.
+    #[must_use]
+    pub fn is_single_db(&self) -> bool {
+        match self.backend {
+            DatabaseBackend::Sqlite => true,
+            _ => self.name.as_deref().map(str::trim).is_some_and(|s| !s.is_empty()),
+        }
+    }
+
     /// Validates this configuration, accumulating every rule violation.
     ///
     /// Rules enforced:
@@ -439,5 +452,60 @@ mod tests {
             debug.contains("query_timeout: Some(30)"),
             "expected query_timeout in debug output: {debug}"
         );
+    }
+
+    #[test]
+    fn is_single_db_true_for_sqlite_regardless_of_name() {
+        let with_name = DatabaseConfig {
+            backend: DatabaseBackend::Sqlite,
+            name: Some("/tmp/db.sqlite".into()),
+            ..DatabaseConfig::default()
+        };
+        assert!(with_name.is_single_db());
+
+        let without_name = DatabaseConfig {
+            backend: DatabaseBackend::Sqlite,
+            name: None,
+            ..DatabaseConfig::default()
+        };
+        assert!(without_name.is_single_db());
+    }
+
+    #[test]
+    fn is_single_db_false_when_name_unset_for_non_sqlite() {
+        for backend in [
+            DatabaseBackend::Mysql,
+            DatabaseBackend::Mariadb,
+            DatabaseBackend::Postgres,
+        ] {
+            let config = DatabaseConfig {
+                backend,
+                name: None,
+                ..DatabaseConfig::default()
+            };
+            assert!(!config.is_single_db(), "{backend:?} with name=None must be multi-db");
+        }
+    }
+
+    #[test]
+    fn is_single_db_false_when_name_is_empty_or_whitespace_for_non_sqlite() {
+        for value in ["", "   ", "\t\n"] {
+            let config = DatabaseConfig {
+                backend: DatabaseBackend::Postgres,
+                name: Some(value.into()),
+                ..DatabaseConfig::default()
+            };
+            assert!(!config.is_single_db(), "name {value:?} must not enable single-db mode");
+        }
+    }
+
+    #[test]
+    fn is_single_db_true_when_name_non_empty_for_non_sqlite() {
+        let config = DatabaseConfig {
+            backend: DatabaseBackend::Postgres,
+            name: Some("app".into()),
+            ..DatabaseConfig::default()
+        };
+        assert!(config.is_single_db());
     }
 }

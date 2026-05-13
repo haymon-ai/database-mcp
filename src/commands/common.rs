@@ -195,7 +195,7 @@ impl TryFrom<&PiiArguments> for PiiConfig {
     }
 }
 
-/// Logs the read-only banner and builds a [`Server`] for `config`.
+/// Logs the runtime-mode banner and builds a [`Server`] for `config`.
 ///
 /// Does **not** establish a database connection. Each adapter defers
 /// pool creation until the first tool invocation, allowing the MCP
@@ -204,8 +204,12 @@ impl TryFrom<&PiiArguments> for PiiConfig {
 /// validated [`Config`].
 #[must_use]
 pub(crate) fn create_server(config: &Config) -> Server {
-    if config.database.read_only {
-        info!("Server running in READ-ONLY mode. Write operations are disabled.");
+    let read_only = config.database.read_only;
+    if config.database.is_single_db() {
+        let name = config.database.name.as_deref().unwrap_or("");
+        info!("server runtime mode: single-database (name=\"{name}\") | read-only={read_only}");
+    } else {
+        info!("server runtime mode: multi-database | read-only={read_only}");
     }
 
     match config.database.backend {
